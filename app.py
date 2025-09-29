@@ -47,7 +47,7 @@ def update_password(username: str, new_password: str) -> bool:
     return False
 
 # --- Configuration Streamlit ---
-st.set_page_config(page_title="Gestion des autorisation MA", layout="centered")
+st.set_page_config(page_title="Gestion des autorisations MA", layout="centered")
 st.title("📄 Gestion de MA & Suivi")
 
 if "logged_in" not in st.session_state:
@@ -75,7 +75,7 @@ st.sidebar.write(f"✅ Connecté : {st.session_state.username} ({st.session_stat
 if st.sidebar.button("Déconnexion"):
     st.session_state.logged_in = False
     st.session_state.username = None
-    st.experimental_rerun()
+    st.rerun()
 
 menu_options = ["🔐 Modifier mot de passe", "📥 MA Import", "📤 MA Export", "📊 Consulter MA"]
 if st.session_state.role == "admin":
@@ -86,7 +86,7 @@ menu = st.sidebar.selectbox("Menu", menu_options)
 try:
     df = pd.read_excel(FICHIER)
 except FileNotFoundError:
-    df = pd.DataFrame(columns=["Semi_remorque", "Référence_MA", "Pays", "Date_ajout", "Type", "Exporté", "Créé_par", "Observation", "Clôturé_par", "Date_clôture", "Vide_plein", "Déclarant"])
+    df = pd.DataFrame(columns=["Matricule", "Référence_MA", "Pays", "Date_ajout", "Type", "Exporté", "Créé_par", "Observation", "Clôturé_par", "Date_clôture", "Vide_plein", "Déclarant"])
 
 def safe_str_upper(series):
     return series.astype(str).fillna('').str.strip().str.upper()
@@ -138,11 +138,12 @@ elif menu == "👤 Créer un utilisateur" and st.session_state.role == "admin":
 
 elif menu == "📥 MA Import" and st.session_state.role != "consult":
     st.subheader("Ajouter une nouvelle autorisation")
-    matricule = st.text_input("Matricule")
-    declarant = st.text_input("Déclarant")
+    matricule = st.text_input("Matricule").strip().upper()
+    declarant = st.text_input("Déclarant").strip().upper()
     ref = st.text_input("Référence_MA").strip().upper()
-    # Liste pays européens (exemple réduit)
-    europe_countries = [
+
+    # Liste pays européens
+    europe_countries = ["",
         "ALBANIE", "ANDORRE", "AUTRICHE", "BELGIQUE", "BOSNIE-HERZÉGOVINE", "BULGARIE", "CROATIE",
         "DANEMARK", "ESPAGNE", "ESTONIE", "FINLANDE", "FRANCE", "GRÈCE", "HONGRIE", "IRLANDE",
         "ISLANDE", "ITALIE", "LETTONIE", "LIECHTENSTEIN", "LITUANIE", "LUXEMBOURG", "MACÉDOINE",
@@ -150,34 +151,47 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
         "RÉPUBLIQUE TCHÈQUE", "ROUMANIE", "ROYAUME-UNI", "SAINT-MARIN", "SERBIE", "SLOVAQUIE",
         "SLOVÉNIE", "SUÈDE", "SUISSE", "UKRAINE", "VATICAN"
     ]
-    pays = st.selectbox("Pays", options=europe_countries)
-    type_doc = st.selectbox("Type MA", ["Au voyage", "A temps", "A vide", "Contrat de coopération", "Contrat de location","Fourgon","Subsaharien", "T6BIS" ])
-    vide_plein = st.selectbox("Vide / Plein", ["Vide", "Plein"])
-    observation = st.text_area("Observation (facultatif)")
+    pays = st.selectbox("Pays", options=europe_countries).upper()
+    type_doc = st.selectbox("Type MA", [
+        "", "AU VOYAGE", "A TEMPS", "A VIDE", 
+         "FOURGON", "SUBSAHARIEN", "T6BIS"
+    ]).upper()
+    vide_plein = st.selectbox("Vide / Plein", ["", "VIDE", "PLEIN"])
+    observation = st.text_area("Observation (facultatif)").strip().upper()
 
-    if st.button("📥 Valider"):
+    if st.button("📥 Ajouter"):
         if not matricule or not ref or not pays:
             st.warning("❗ Veuillez remplir tous les champs obligatoires.")
         else:
+            # Vérifier doublon exact
             df["Référence_MA_clean"] = safe_str_upper(df["Référence_MA"])
             df["Pays_clean"] = safe_str_upper(df["Pays"])
             df["Type_clean"] = safe_str_upper(df["Type"])
             is_duplicate = df[
-    (df["Référence_MA_clean"] == ref) &
-    (df["Pays_clean"] == pays.upper()) &
-    (df["Type_clean"] == type_doc.upper()) &
-    ~(
-        (df["Type_clean"] == "A TEMPS") &
-        (df["Exporté"].str.upper() == "OUI")
-    )
-]
+                (df["Référence_MA_clean"] == ref) &
+                (df["Pays_clean"] == pays) &
+                (df["Type_clean"] == type_doc) &
+                ~(
+                    (df["Type_clean"] == "A TEMPS") &
+                    (df["Exporté"].str.upper() == "OUI")
+                )
+            ]
 
             if not is_duplicate.empty:
-                st.error("❌ Cette autoristion MA a déjà été ajoutée avec la même Référence_MA, Type et Pays.")
+                st.error("❌ Cette autorisation MA existe déjà (Réf + Type + Pays).")
             else:
+                # Vérifier si ce camion a déjà une MA active
+                ma_actives = df[
+                    (safe_str_upper(df["Matricule"]) == matricule) &
+                    (df["Exporté"].str.upper() != "OUI")
+                ]
+                if not ma_actives.empty:
+                    st.warning(f"⚠️ Le camion {matricule} possède déjà {len(ma_actives)} MA actives non exportées.")
+
+                # Ajouter le nouveau document
                 new_doc = {
                     "Matricule": matricule,
-		    "Déclarant": declarant,
+                    "Déclarant": declarant,
                     "Référence_MA": ref,
                     "Pays": pays,
                     "Date_ajout": datetime.today().strftime("%Y-%m-%d %H:%M:%S"),
@@ -198,30 +212,50 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
     last_imports = df.sort_values(by="Date_ajout", ascending=False).head(10)
     colonnes_a_afficher = [col for col in last_imports.columns if not col.endswith("_clean")]
     st.dataframe(last_imports[colonnes_a_afficher])
+
 # --- Export MA ---
+
 elif menu == "📤 MA Export" and st.session_state.role != "consult":
     st.subheader("Rechercher une autorisation MA à clôturer")
-    df_temp = df[df["Exporté"] != "Oui"].copy()
-    df_temp["key"] = df_temp.index
-    df_temp["Recherche"] = df_temp["Matricule"].astype(str) + " | " + df_temp["Référence_MA"].astype(str)
+    df_temp = df[df["Exporté"].str.upper() != "OUI"].copy()
 
-    search_term = st.text_input("🔍 Recherche (matricule ou référence_MA ou Pays)").upper()
-    df_filtered = df_temp[df_temp["Recherche"].str.contains(search_term, na=False)] if search_term else df_temp
+    # Champ recherche
+    search_term = st.text_input("🔍 Recherche (matricule ou référence_MA ou Pays)").strip().upper()
 
-    if not df_filtered.empty:
-        selected_row = st.radio("Sélectionner une ligne à clôturer", df_filtered["Recherche"].tolist())
-        if st.button("📤 Ajouter"):
-            idx = df_filtered[df_filtered["Recherche"] == selected_row]["key"].values[0]
-            df.at[idx, "Exporté"] = "Oui"
-            df.at[idx, "Clôturé_par"] = st.session_state.username
-            df.at[idx, "Date_clôture"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            df.to_excel(FICHIER, index=False)
-            st.success("✅ clôturé marqué avec succès.")
+    if search_term:  # 👉 n’afficher que si l’utilisateur tape quelque chose
+        df_filtered = df_temp[
+            safe_str_upper(df_temp["Matricule"]).str.contains(search_term, na=False) |
+            safe_str_upper(df_temp["Référence_MA"]).str.contains(search_term, na=False) |
+            safe_str_upper(df_temp["Pays"]).str.contains(search_term, na=False)
+        ]
 
-    st.subheader("5 dernières opérations")
-    last_exports = df[df["Exporté"] == "Oui"].sort_values(by="Date_clôture", ascending=False).head(5)
-    st.dataframe(last_exports)
+        if not df_filtered.empty:
+            # On affiche seulement les colonnes utiles
+            colonnes_affichees = ["Matricule", "Référence_MA", "Type", "Date_ajout"]
+            st.dataframe(df_filtered[colonnes_affichees])
 
+            # Choix de la ligne
+            selected_row = st.selectbox(
+                "Sélectionner une autorisation à clôturer",
+                df_filtered["Référence_MA"].tolist()
+            )
+
+            if st.button("📤 Clôturer la sélection"):
+                idx = df_filtered[df_filtered["Référence_MA"] == selected_row].index[0]
+                df.at[idx, "Exporté"] = "Oui"
+                df.at[idx, "Clôturé_par"] = st.session_state.username
+                df.at[idx, "Date_clôture"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                df.to_excel(FICHIER, index=False)
+                st.success(f"✅ L'autorisation {selected_row} a été clôturée avec succès.")
+        else:
+            st.info("Aucun résultat trouvé pour cette recherche.")
+    else:
+        st.info("👉 Veuillez saisir un critère de recherche pour afficher les résultats.")
+
+    # Historique
+    st.subheader("5 dernières clôtures")
+    last_exports = df[df["Exporté"].str.upper() == "OUI"].sort_values(by="Date_clôture", ascending=False).head(5)
+    st.dataframe(last_exports[["Matricule", "Référence_MA", "Type", "Date_clôture"]])
 # --- Consultation ---
 elif menu == "📊 Consulter MA":
     st.subheader("Filtrer les autorisations MA")
