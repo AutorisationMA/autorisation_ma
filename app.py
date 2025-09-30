@@ -141,7 +141,10 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
     matricule = st.text_input("Matricule").strip().upper()
 
 
-    declarants_liste = ["", "1 PORT", "2HR TRANS"]
+    declarants_liste = [ "",
+    "1 PORT", "2HR TRANS", "2S2A EXPRESS", "3 C LOG SOLAR", "365 LOGISTIQUE", 
+    "3S TRANSIT", "4G TRANS", "4TL MED TRANSIT", "A FIVE INTERNATIONAL", "A RIGHT TRANS"]
+
                    
     declarant = st.selectbox("Déclarant", options=declarants_liste)
 
@@ -297,6 +300,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
