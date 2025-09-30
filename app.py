@@ -88,7 +88,6 @@ if st.session_state.role == "admin":
     menu_options.insert(1, "👤 Créer un utilisateur")
 
 menu = st.sidebar.radio("Menu", menu_options)
-)
 
 # --- Chargement fichier ---
 try:
@@ -300,6 +299,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
