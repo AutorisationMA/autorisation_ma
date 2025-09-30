@@ -146,7 +146,7 @@ elif menu == "👤 Créer un utilisateur" and st.session_state.role == "admin":
 elif menu == "📥 MA Import" and st.session_state.role != "consult":
     st.subheader("Ajouter une nouvelle autorisation")
     matricule = st.text_input("Matricule").strip().upper()
-    st.selectbox("DéCLARANT", ["", "PUERTO TRANSIT", "TIMAR"])
+    st.selectbox("Déclarant", ["", "PUERTO TRANSIT", "TIMAR""MAKITA AFRICA", "MALINAS TRADING", "MAM LOGISTIC MAROC SARL", "MANAR", "MANASSI TRANSIT"])
     ref = st.text_input("Référence_MA").strip()
 
     # Validation pour que ref soit uniquement chiffres
@@ -305,6 +305,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
