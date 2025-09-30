@@ -139,7 +139,16 @@ elif menu == "👤 Créer un utilisateur" and st.session_state.role == "admin":
 elif menu == "📥 MA Import" and st.session_state.role != "consult":
     st.subheader("Ajouter une nouvelle autorisation")
     matricule = st.text_input("Matricule").strip().upper()
-    declarant = st.text_input("Déclarant")
+
+
+declarants_liste = [
+    "1 PORT", "2HR TRANS", "2S2A EXPRESS", "3 C LOG SOLAR", "365 LOGISTIQUE", 
+    "3S TRANSIT", "4G TRANS", "4TL MED TRANSIT", "A FIVE INTERNATIONAL", "A RIGHT TRANS",
+    # ... (toute ta liste ici)
+]
+
+declarant = st.selectbox("Déclarant", options=declarants_liste)
+
     ref = st.text_input("Référence_MA").strip().upper()
 # liste déclarant
 
@@ -296,5 +305,6 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
