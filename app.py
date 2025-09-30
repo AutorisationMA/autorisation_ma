@@ -143,18 +143,15 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
 
 declarants_liste = [
     "1 PORT", "2HR TRANS", "2S2A EXPRESS", "3 C LOG SOLAR", "365 LOGISTIQUE", 
-    "3S TRANSIT", "4G TRANS", "4TL MED TRANSIT", "A FIVE INTERNATIONAL", "A RIGHT TRANS",
+    "3S TRANSIT", "4G TRANS", "4TL MED TRANSIT", "A FIVE INTERNATIONAL", "A RIGHT TRANS"
     # ... (toute ta liste ici)
 ]
 
-declarant = st.selectbox("Déclarant", options=declarants_liste)
+    declarant = st.selectbox("Déclarant", options=declarants_liste)
 
     ref = st.text_input("Référence_MA").strip().upper()
-# liste déclarant
 
-
-    
-    # Liste pays européens
+  # Liste pays européens
     europe_countries = ["",
         "ALBANIE", "ANDORRE", "AUTRICHE", "BELGIQUE", "BOSNIE-HERZÉGOVINE", "BULGARIE", "CROATIE",
         "DANEMARK", "ESPAGNE", "ESTONIE", "FINLANDE", "FRANCE", "GRÈCE", "HONGRIE", "IRLANDE",
@@ -305,6 +302,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
