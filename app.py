@@ -151,7 +151,7 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
         "MALTE", "MOLDAVIE", "MONACO", "MONTÉNÉGRO", "NORVÈGE", "PAYS-BAS", "POLOGNE", "PORTUGAL",
         "RÉPUBLIQUE TCHÈQUE", "ROUMANIE", "ROYAUME-UNI", "SAINT-MARIN", "SERBIE", "SLOVAQUIE",
         "SLOVÉNIE", "SUÈDE", "SUISSE", "UKRAINE", "VATICAN"]
-    ]
+    
     pays = st.selectbox("Pays", options=europe_countries).upper()
     type_doc = st.selectbox("Type MA", [
         "", "AU VOYAGE", "A TEMPS", "A VIDE", 
@@ -294,6 +294,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
