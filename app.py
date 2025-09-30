@@ -147,13 +147,12 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
     st.subheader("Ajouter une nouvelle autorisation")
     matricule = st.text_input("Matricule").strip().upper()
     declarant = st.text_input("Déclarant")
-    
     ref = st.text_input("Référence_MA").strip()
     if ref and not ref.isdigit():
     st.warning("Veuillez entrer uniquement des chiffres.")
-   
-
-  # Liste pays européens
+    else:
+    ref = ref.upper()
+   # Liste pays européens
     europe_countries = ["","ALBANIE", "ANDORRE", "AUTRICHE", "BELGIQUE", "BOSNIE-HERZÉGOVINE", "BULGARIE", "CROATIE",
         "DANEMARK", "ESPAGNE", "ESTONIE", "FINLANDE", "FRANCE", "GRÈCE", "HONGRIE", "IRLANDE",
         "ISLANDE", "ITALIE", "LETTONIE", "LIECHTENSTEIN", "LITUANIE", "LUXEMBOURG", "MACÉDOINE",
@@ -303,6 +302,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
