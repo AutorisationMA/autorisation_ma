@@ -77,10 +77,18 @@ if st.sidebar.button("Déconnexion"):
     st.session_state.username = None
     st.rerun()
 
-menu_options = ["🔐 Modifier mot de passe", "📥 MA Import", "📤 MA Export", "📊 Consulter MA"]
+menu_options = [
+    "🔐 Modifier mot de passe",
+    "📥 MA Import",
+    "📤 MA Export",
+    "📊 Consulter MA"
+]
+
 if st.session_state.role == "admin":
     menu_options.insert(1, "👤 Créer un utilisateur")
-menu = st.sidebar.selectbox("Menu", menu_options)
+
+menu = st.sidebar.radio("Menu", menu_options)
+)
 
 # --- Chargement fichier ---
 try:
@@ -292,6 +300,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
