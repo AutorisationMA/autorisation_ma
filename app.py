@@ -141,10 +141,7 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
     matricule = st.text_input("Matricule").strip().upper()
 
 
-    declarants_liste = ["","1 PORT", "2HR TRANS", "2S2A EXPRESS", "3 C LOG SOLAR", "365 LOGISTIQUE", "3S TRANSIT", "4G TRANS", "4TL MED TRANSIT", "A FIVE INTERNATIONAL", "A RIGHT TRANS",
-                        "A Z TRANS PLUS", "A.F.H.P", "A.G.T.T", "A.H.I LOGISTIQUE", "A.H.S LOGISTIC", "A.M.R TRANS", "A.MAGRI LOGISTIQUE", "A.T.I TRANS",
-                    "ABDELWARET TRANS", "ABOUJANAH TRANS", "ACCESS TRANSIT", "ACCIONA", "ACE MAREE", "ACHARK TRANS", "ACL TRANS", "ACUERDO TRANS",
-                        "AD LOGISTIQUE", "ADAMIR TRANS", "ADAMIR TRANS MAROC", "ADASONA TRANS", "ADATRA"]
+    declarants_liste = ["", "1 PORT", "2HR TRANS"]
                    
     declarant = st.selectbox("Déclarant", options=declarants_liste)
 
@@ -300,6 +297,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
