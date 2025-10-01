@@ -6,7 +6,7 @@ from pathlib import Path
 
 # --- FICHIERS ---
 USERS_FILE = "users.xlsx"
-FICHIER = "/mnt/data/autorisation_ma.xlsx"
+FICHIER ="autorisation_ma.xlsx"
 
 # --- Hachage mot de passe ---
 def hash_password(password: str) -> str:
@@ -353,6 +353,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
