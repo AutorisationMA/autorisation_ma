@@ -255,7 +255,7 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
 
 # --- Export MA ---
 
-eelif menu == "📤 MA Export" and st.session_state.role != "consult":
+elif menu == "📤 MA Export" and st.session_state.role != "consult":
     st.subheader("Rechercher une autorisation MA à clôturer")
     df_temp = df[df["Exporté"].str.upper() != "OUI"].copy()
 
@@ -351,6 +351,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
