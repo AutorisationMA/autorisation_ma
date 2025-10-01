@@ -3,13 +3,8 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# --- Chemin persistant sur Streamlit Cloud ---
-FICHIER = "/mnt/data/autorisation_ma.xlsx"
-DOSSIER = os.path.dirname(FICHIER)
-
-# Créer le dossier /mnt/data s'il n'existe pas
-if not os.path.exists(DOSSIER):
-    os.makedirs(DOSSIER)
+# --- Chemin fichier Excel ---
+FICHIER = "autorisation_ma.xlsx"
 
 # --- Initialisation DataFrame ---
 if not os.path.exists(FICHIER):
@@ -28,9 +23,9 @@ def safe_str_upper(s):
 # --- Menu ---
 menu = st.sidebar.selectbox("Menu", ["📥 MA Import", "📤 MA Export", "📊 Consulter MA"])
 if "username" not in st.session_state:
-    st.session_state.username = "TEST"  # remplacer par login réel
+    st.session_state.username = "TEST"  # à remplacer par login réel
 if "role" not in st.session_state:
-    st.session_state.role = "admin"  # remplacer par rôle réel
+    st.session_state.role = "admin"
 
 # --- Import ---
 if menu == "📥 MA Import" and st.session_state.role != "consult":
@@ -40,7 +35,6 @@ if menu == "📥 MA Import" and st.session_state.role != "consult":
     declarant = st.text_input("Déclarant").strip().upper()
     ref = st.text_input("Référence_MA (optionnelle pour FOURGON/T6BIS/SUBSAHARIEN)").strip()
     
-    # Liste pays européens
     europe_countries = ["","ALBANIE","ANDORRE","AUTRICHE","BELGIQUE","BOSNIE-HERZÉGOVINE","BULGARIE",
                         "CROATIE","DANEMARK","ESPAGNE","ESTONIE","FINLANDE","FRANCE","GRÈCE",
                         "HONGRIE","IRLANDE","ISLANDE","ITALIE","LETTONIE","LIECHTENSTEIN",
@@ -55,11 +49,9 @@ if menu == "📥 MA Import" and st.session_state.role != "consult":
     observation = st.text_area("Observation (facultatif)").strip().upper()
     
     if st.button("📥 Ajouter"):
-        # Validation : obligatoire sauf pour certains types
-        if (not ref and type_doc not in ["FOURGON", "T6BIS", "SUBSAHARIEN"]) or not matricule or not pays:
-            st.warning("❗ Veuillez remplir tous les champs obligatoires (Réf non obligatoire pour FOURGON/T6BIS/SUBSAHARIEN).")
+        if (not ref and type_doc not in ["FOURGON","T6BIS","SUBSAHARIEN"]) or not matricule or not pays:
+            st.warning("❗ Veuillez remplir tous les champs obligatoires")
         else:
-            # Vérifier doublon
             df["Référence_MA_clean"] = safe_str_upper(df["Référence_MA"])
             df["Pays_clean"] = safe_str_upper(df["Pays"])
             df["Type_clean"] = safe_str_upper(df["Type"])
@@ -71,17 +63,15 @@ if menu == "📥 MA Import" and st.session_state.role != "consult":
                 ~((df["Type_clean"] == "A TEMPS") & (df["Exporté"].str.upper() == "OUI"))
             ]
             if not is_duplicate.empty:
-                st.error("❌ Cette autorisation MA existe déjà (Réf + Type + Pays).")
+                st.error("❌ Cette autorisation MA existe déjà")
             else:
-                # Vérifier MA actives pour ce camion
                 ma_actives = df[
                     (safe_str_upper(df["Matricule"]) == matricule) &
                     (df["Exporté"].str.upper() != "OUI")
                 ]
                 if not ma_actives.empty:
-                    st.warning(f"⚠️ Le camion {matricule} possède déjà {len(ma_actives)} MA actives non exportées.")
+                    st.warning(f"⚠️ Le camion {matricule} possède déjà {len(ma_actives)} MA actives")
                 
-                # Ajouter
                 new_doc = {
                     "Matricule": matricule,
                     "Déclarant": declarant,
@@ -96,9 +86,9 @@ if menu == "📥 MA Import" and st.session_state.role != "consult":
                     "Date_clôture": "",
                     "Vide_plein": vide_plein
                 }
-                df = pd.concat([df, pd.DataFrame([new_doc])], ignore_index=True)
+                df = pd.concat([df,pd.DataFrame([new_doc])], ignore_index=True)
                 df.to_excel(FICHIER, index=False)
-                st.success("✅ Réf MA ajoutée avec succès")
+                st.success("✅ Réf MA ajoutée")
                 st.write(df.tail(3))
 
 # --- Export ---
@@ -106,7 +96,7 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
     st.subheader("Rechercher une autorisation MA à clôturer")
     df_temp = df[df["Exporté"].str.upper() != "OUI"].copy()
     
-    search_term = st.text_input("🔍 Recherche (matricule, référence ou pays)").strip().upper()
+    search_term = st.text_input("🔍 Recherche").strip().upper()
     
     if search_term:
         df_filtered = df_temp[
@@ -115,74 +105,72 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
             safe_str_upper(df_temp["Pays"]).str.contains(search_term, na=False)
         ]
         if not df_filtered.empty:
-            st.dataframe(df_filtered[["Matricule", "Référence_MA", "Type", "Date_ajout"]])
-            
-            options = {f"{row['Matricule']} | {row['Référence_MA']} | {row['Type']}": idx for idx, row in df_filtered.iterrows()}
-            selected_label = st.selectbox("Sélectionner une autorisation à clôturer", list(options.keys()))
+            st.dataframe(df_filtered[["Matricule","Référence_MA","Type","Date_ajout"]])
+            options = {f"{row['Matricule']} | {row['Référence_MA']} | {row['Type']}": idx
+                       for idx,row in df_filtered.iterrows()}
+            selected_label = st.selectbox("Sélectionner une autorisation", list(options.keys()))
             
             if st.button("📤 Clôturer la sélection"):
                 idx = options[selected_label]
-                type_selected = df.at[idx, "Type"].upper()
+                type_selected = df.at[idx,"Type"].upper()
                 
-                if type_selected in ["T6BIS", "FOURGON", "SUBSAHARIEN"]:
-                    st.warning(f"⚠️ Attention : clôture d'une opération {type_selected}. Confirmer avant de continuer.")
-                    if st.button(f"✅ Confirmer la clôture {type_selected}"):
-                        df.at[idx, "Exporté"] = "Oui"
-                        df.at[idx, "Clôturé_par"] = st.session_state.username
-                        df.at[idx, "Date_clôture"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        df.to_excel(FICHIER, index=False)
-                        st.success(f"✅ {selected_label} ({type_selected}) clôturée")
+                if type_selected in ["T6BIS","FOURGON","SUBSAHARIEN"]:
+                    st.warning(f"⚠️ Attention clôture {type_selected}")
+                    if st.button(f"✅ Confirmer clôture {type_selected}"):
+                        df.at[idx,"Exporté"]="Oui"
+                        df.at[idx,"Clôturé_par"]=st.session_state.username
+                        df.at[idx,"Date_clôture"]=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        df.to_excel(FICHIER,index=False)
+                        st.success(f"{selected_label} clôturée")
                 else:
-                    df.at[idx, "Exporté"] = "Oui"
-                    df.at[idx, "Clôturé_par"] = st.session_state.username
-                    df.at[idx, "Date_clôture"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    df.to_excel(FICHIER, index=False)
-                    st.success(f"✅ {selected_label} clôturée")
+                    df.at[idx,"Exporté"]="Oui"
+                    df.at[idx,"Clôturé_par"]=st.session_state.username
+                    df.at[idx,"Date_clôture"]=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    df.to_excel(FICHIER,index=False)
+                    st.success(f"{selected_label} clôturée")
         else:
-            st.info("Aucun résultat trouvé pour cette recherche.")
+            st.info("Aucun résultat")
     else:
-        st.info("👉 Saisir un critère pour afficher les résultats.")
-    
-    # Historique
+        st.info("👉 Saisir un critère")
+
     st.subheader("5 dernières clôtures")
-    df["Date_clôture"] = pd.to_datetime(df["Date_clôture"], errors="coerce")
-    last_exports = df[df["Exporté"].str.upper() == "OUI"].sort_values(by="Date_clôture", ascending=False).head(5)
-    last_exports["Réf_affichage"] = last_exports.apply(
-        lambda row: row["Référence_MA"] if str(row["Référence_MA"]).strip()
-        else f"SANS_REF ({row['Type']})", axis=1
+    df["Date_clôture"]=pd.to_datetime(df["Date_clôture"],errors="coerce")
+    last_exports=df[df["Exporté"].str.upper()=="OUI"].sort_values(by="Date_clôture",ascending=False).head(5)
+    last_exports["Réf_affichage"]=last_exports.apply(
+        lambda row: row["Référence_MA"] if str(row["Référence_MA"]).strip() else f"SANS_REF ({row['Type']})",
+        axis=1
     )
     if not last_exports.empty:
-        st.dataframe(last_exports[["Matricule", "Réf_affichage", "Type", "Date_clôture"]])
+        st.dataframe(last_exports[["Matricule","Réf_affichage","Type","Date_clôture"]])
     else:
-        st.info("Aucune opération clôturée récemment.")
+        st.info("Aucune opération clôturée récemment")
     
-    # Télécharger Excel
-    with open(FICHIER, "rb") as f:
+    with open(FICHIER,"rb") as f:
         st.download_button("⬇️ Télécharger Excel", f, file_name="autorisation_ma.xlsx")
 
 # --- Consultation ---
-elif menu == "📊 Consulter MA":
+elif menu=="📊 Consulter MA":
     st.subheader("Filtrer les autorisations MA")
-    matricule_search = st.text_input("🔍 Recherche par Matricule").strip()
-    pays_sel = st.multiselect("Pays", options=df["Pays"].dropna().unique())
-    type_sel = st.multiselect("Type MA", options=df["Type"].dropna().unique())
-    date_start = st.date_input("Date début", value=None)
-    date_end = st.date_input("Date fin", value=None)
+    matricule_search=st.text_input("🔍 Recherche par Matricule").strip()
+    pays_sel=st.multiselect("Pays", options=df["Pays"].dropna().unique())
+    type_sel=st.multiselect("Type MA", options=df["Type"].dropna().unique())
+    date_start=st.date_input("Date début", value=None)
+    date_end=st.date_input("Date fin", value=None)
 
-    df_filtered = df.copy()
+    df_filtered=df.copy()
     if not pd.api.types.is_datetime64_any_dtype(df_filtered["Date_ajout"]):
-        df_filtered["Date_ajout"] = pd.to_datetime(df_filtered["Date_ajout"], errors='coerce')
+        df_filtered["Date_ajout"]=pd.to_datetime(df_filtered["Date_ajout"],errors='coerce')
 
     if matricule_search:
-        df_filtered = df_filtered[safe_str_upper(df_filtered["Matricule"]).str.contains(matricule_search.upper(), na=False)]
+        df_filtered=df_filtered[safe_str_upper(df_filtered["Matricule"]).str.contains(matricule_search.upper(),na=False)]
     if pays_sel:
-        df_filtered = df_filtered[df_filtered["Pays"].isin(pays_sel)]
+        df_filtered=df_filtered[df_filtered["Pays"].isin(pays_sel)]
     if type_sel:
-        df_filtered = df_filtered[df_filtered["Type"].isin(type_sel)]
+        df_filtered=df_filtered[df_filtered["Type"].isin(type_sel)]
     if date_start:
-        df_filtered = df_filtered[df_filtered["Date_ajout"] >= pd.Timestamp(date_start)]
+        df_filtered=df_filtered[df_filtered["Date_ajout"]>=pd.Timestamp(date_start)]
     if date_end:
-        df_filtered = df_filtered[df_filtered["Date_ajout"] <= pd.Timestamp(date_end)]
-    
-    df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
+        df_filtered=df_filtered[df_filtered["Date_ajout"]<=pd.Timestamp(date_end)]
+
+    df_filtered=df_filtered.sort_values(by="Date_ajout",ascending=False)
     st.dataframe(df_filtered)
