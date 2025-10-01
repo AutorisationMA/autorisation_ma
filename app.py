@@ -354,8 +354,22 @@ elif menu == "📊 Consulter MA":
 
     st.dataframe(df_filtered)
 
-    # Fonction p
+    # --- Export Excel ---
+    import io
+    from openpyxl import Workbook
 
+    if not df_filtered.empty:
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            df_filtered.to_excel(writer, index=False, sheet_name="Autorisations_MA")
+        st.download_button(
+            label="📥 Télécharger en Excel",
+            data=buffer.getvalue(),
+            file_name="autorisations_filtrees.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    else:
+        st.info("Aucune donnée à exporter.")
 
 
 
