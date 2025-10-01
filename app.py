@@ -148,13 +148,27 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
     # Champs du formulaire
     matricule = st.text_input("Matricule").strip().upper()
     declarant = st.text_input("Déclarant").strip().upper()
-    ref = st.text_input("Référence_MA").strip()
 
-    # Validation : la référence doit être uniquement composée de chiffres
-    if ref and not ref.isdigit():
+    # Choix type MA (avant Référence_MA pour activer/désactiver dynamiquement)
+    type_doc = st.selectbox(
+        "Type MA",
+        ["", "AU VOYAGE", "A TEMPS", "A VIDE", "FOURGON", "SUBSAHARIEN", "T6BIS"]
+    ).upper()
+
+    # Désactivation du champ Référence_MA selon type_doc
+    disable_ref = type_doc in ["FOURGON", "T6BIS", "SUBSAHARIEN"]
+
+    ref = st.text_input(
+        "Référence_MA",
+        value="" if disable_ref else "",
+        disabled=disable_ref
+    ).strip()
+
+    # Validation : uniquement chiffres si activé
+    if ref and not ref.isdigit() and not disable_ref:
         st.warning("Veuillez entrer uniquement des chiffres pour la Référence MA.")
     else:
-        ref = ref.upper()  # Optionnel (inutile si chiffres)
+        ref = ref.upper()  # Optionnel
 
     # Liste des pays européens
     europe_countries = [
@@ -169,16 +183,12 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
     ]
 
     pays = st.selectbox("Pays", options=europe_countries).upper()
-    type_doc = st.selectbox(
-        "Type MA",
-        ["", "AU VOYAGE", "A TEMPS", "A VIDE", "FOURGON", "SUBSAHARIEN", "T6BIS"]
-    ).upper()
     vide_plein = st.selectbox("Vide / Plein", ["", "VIDE", "PLEIN"])
     observation = st.text_area("Observation (facultatif)").strip().upper()
 
     # Bouton d’ajout
     if st.button("📥 Ajouter"):
-        if not matricule or not ref or not pays:
+        if not matricule or (not ref and not disable_ref) or not pays:
             st.warning("❗ Veuillez remplir tous les champs obligatoires.")
         else:
             # Vérification de doublon exact
@@ -215,7 +225,7 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
                 new_doc = {
                     "Matricule": matricule,
                     "Déclarant": declarant,
-                    "Référence_MA": ref,
+                    "Référence_MA": ref if not disable_ref else "",
                     "Pays": pays,
                     "Date_ajout": datetime.today().strftime("%Y-%m-%d %H:%M:%S"),
                     "Type": type_doc,
@@ -232,12 +242,13 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
 
                 st.success("✅ Réf MA ajouté avec succès.")
 
-
-# Affichage des 10 dernières opérations import
-    st.subheader("📋 10 dernières opérations")
-    last_imports = df.sort_values(by="Date_ajout", ascending=False).head(10)
-    colonnes_a_afficher = [col for col in last_imports.columns if not col.endswith("_clean")]
-    st.dataframe(last_imports[colonnes_a_afficher])
+                # Affichage des 10 dernières opérations
+                st.subheader("📋 10 dernières opérations")
+                last_imports = df.sort_values(by="Date_ajout", ascending=False).head(10)
+                colonnes_a_afficher = [
+                    col for col in last_imports.columns if not col.endswith("_clean")
+                ]
+                st.dataframe(last_imports[colonnes_a_afficher])
 
 
 
@@ -321,6 +332,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
