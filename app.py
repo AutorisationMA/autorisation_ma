@@ -255,20 +255,20 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
 
 # --- Export MA ---
 
-elif menu == "📤 MA Export" and st.session_state.role != "consult":
+eelif menu == "📤 MA Export" and st.session_state.role != "consult":
     st.subheader("Rechercher une autorisation MA à clôturer")
     df_temp = df[df["Exporté"].str.upper() != "OUI"].copy()
 
-    # Remplacer Réf vide par une valeur lisible (pour sélection/export)
+    # Ajouter une colonne affichage pour gérer les références vides
     df_temp["Réf_affichage"] = df_temp.apply(
-        lambda row: row["Référence_MA"] if str(row["Référence_MA"]).strip() 
+        lambda row: row["Référence_MA"] if str(row["Référence_MA"]).strip()
         else f"SANS_REF ({row['Type']})", axis=1
     )
 
     # Champ recherche
-    search_term = st.text_input("🔍 Recherche (matricule, référence_MA ou pays)").strip().upper()
+    search_term = st.text_input("🔍 Recherche (matricule, référence_MA, pays ou type)").strip().upper()
 
-    if search_term:  # 👉 n’afficher que si l’utilisateur tape quelque chose
+    if search_term:
         df_filtered = df_temp[
             safe_str_upper(df_temp["Matricule"]).str.contains(search_term, na=False) |
             safe_str_upper(df_temp["Référence_MA"]).str.contains(search_term, na=False) |
@@ -277,26 +277,27 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
         ]
 
         if not df_filtered.empty:
-            # On affiche seulement les colonnes utiles
+            # Colonnes utiles
             colonnes_affichees = ["Matricule", "Réf_affichage", "Type", "Date_ajout"]
             st.dataframe(df_filtered[colonnes_affichees])
 
-            # Sélection avec la référence affichée
-            selected_row = st.selectbox(
-                "Sélectionner une autorisation à clôturer",
-                df_filtered["Réf_affichage"].tolist()
-            )
+            # Utiliser l’index réel comme clé de sélection
+            options = {
+                f"{row['Matricule']} | {row['Réf_affichage']} | {row['Type']} | {row['Date_ajout']}": idx
+                for idx, row in df_filtered.iterrows()
+            }
+
+            selected_label = st.selectbox("Sélectionner une autorisation à clôturer", list(options.keys()))
 
             if st.button("📤 Clôturer la sélection"):
-                # Retrouver l’index correspondant
-                idx = df_filtered[df_filtered["Réf_affichage"] == selected_row].index[0]
+                idx = options[selected_label]  # Récupérer le vrai index
 
                 df.at[idx, "Exporté"] = "Oui"
                 df.at[idx, "Clôturé_par"] = st.session_state.username
                 df.at[idx, "Date_clôture"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 df.to_excel(FICHIER, index=False)
 
-                st.success(f"✅ L'autorisation {selected_row} a été clôturée avec succès.")
+                st.success(f"✅ L'autorisation {selected_label} a été clôturée avec succès.")
         else:
             st.info("Aucun résultat trouvé pour cette recherche.")
     else:
@@ -304,11 +305,9 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
 
     # Historique
     st.subheader("5 dernières clôtures")
-    last_exports = df[df["Exporté"].str.upper() == "OUI"] \
-                    .sort_values(by="Date_clôture", ascending=False) \
-                    .head(5)
+    last_exports = df[df["Exporté"].str.upper() == "OUI"].sort_values(by="Date_clôture", ascending=False).head(5)
     last_exports["Réf_affichage"] = last_exports.apply(
-        lambda row: row["Référence_MA"] if str(row["Référence_MA"]).strip() 
+        lambda row: row["Référence_MA"] if str(row["Référence_MA"]).strip()
         else f"SANS_REF ({row['Type']})", axis=1
     )
     st.dataframe(last_exports[["Matricule", "Réf_affichage", "Type", "Date_clôture"]])
@@ -352,6 +351,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
