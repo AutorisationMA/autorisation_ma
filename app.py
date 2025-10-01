@@ -232,13 +232,14 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
 
                 st.success("✅ Réf MA ajouté avec succès.")
 
-                # Affichage des 10 dernières opérations
-                st.subheader("📋 10 dernières opérations")
-                last_imports = df.sort_values(by="Date_ajout", ascending=False).head(10)
-                colonnes_a_afficher = [
-                    col for col in last_imports.columns if not col.endswith("_clean")
-                ]
-                st.dataframe(last_imports[colonnes_a_afficher])
+
+# Affichage des 10 dernières opérations import 
+st.subheader("📋 10 dernières opérations") 
+last_imports = df.sort_values(by="Date_ajout", ascending=False).head(10) 
+colonnes_a_afficher = [
+    col for col in last_imports.columns if not col.endswith("_clean")
+] 
+st.dataframe(last_imports[colonnes_a_afficher])
 
 
 # --- Export MA ---
@@ -321,6 +322,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
