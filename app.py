@@ -353,29 +353,9 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
-    import io
 
-# ... ton code existant pour filtrer df_filtered ...
+    # Fonction p
 
-st.dataframe(df_filtered)
-
-# Ajouter un bouton pour exporter en Excel
-def to_excel(df):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Autorisations')
-        writer.save()
-    processed_data = output.getvalue()
-    return processed_data
-
-excel_data = to_excel(df_filtered)
-
-st.download_button(
-    label="⬇️ Exporter les résultats en Excel",
-    data=excel_data,
-    file_name='autorisations_filtrees.xlsx',
-    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-)
 
 
 
