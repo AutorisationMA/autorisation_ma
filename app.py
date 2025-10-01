@@ -309,9 +309,23 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
         st.info("👉 Veuillez saisir un critère de recherche pour afficher les résultats.")
 
     # Historique
-    st.subheader("5 dernières clôtures")
-    last_exports = df[df["Exporté"].str.upper() == "OUI"].sort_values(by="Date_clôture", ascending=False).head(5)
+    # Historique
+st.subheader("5 dernières clôtures")
+
+# S'assurer que Date_clôture est au format datetime
+df["Date_clôture"] = pd.to_datetime(df["Date_clôture"], errors="coerce")
+
+# Filtrer uniquement les MA clôturées
+last_exports = df[df["Exporté"].str.upper() == "OUI"].copy()
+
+# Trier par date de clôture descendante et prendre les 5 dernières
+last_exports = last_exports.sort_values(by="Date_clôture", ascending=False).head(5)
+
+# Affichage des colonnes utiles
+if not last_exports.empty:
     st.dataframe(last_exports[["Matricule", "Référence_MA", "Type", "Date_clôture"]])
+else:
+    st.info("Aucune opération clôturée récemment.")
 
 
     
@@ -352,6 +366,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
