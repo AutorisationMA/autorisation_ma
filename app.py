@@ -149,26 +149,24 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
     matricule = st.text_input("Matricule").strip().upper()
     declarant = st.text_input("Déclarant").strip().upper()
 
-    # Choix type MA (avant Référence_MA pour activer/désactiver dynamiquement)
+    # Choix type MA (avant la référence pour gérer la validation)
     type_doc = st.selectbox(
         "Type MA",
         ["", "AU VOYAGE", "A TEMPS", "A VIDE", "FOURGON", "SUBSAHARIEN", "T6BIS"]
     ).upper()
 
-    # Désactivation du champ Référence_MA selon type_doc
-    disable_ref = type_doc in ["FOURGON", "T6BIS", "SUBSAHARIEN"]
+    # Champ Référence_MA (optionnel si FOURGON / T6BIS / SUBSAHARIEN)
+    ref = st.text_input("Référence_MA").strip()
 
-    ref = st.text_input(
-        "Référence_MA",
-        value="" if disable_ref else "",
-        disabled=disable_ref
-    ).strip()
-
-    # Validation : uniquement chiffres si activé
-    if ref and not ref.isdigit() and not disable_ref:
-        st.warning("Veuillez entrer uniquement des chiffres pour la Référence MA.")
+    # Validation uniquement si le champ est obligatoire
+    if type_doc not in ["FOURGON", "T6BIS", "SUBSAHARIEN"]:
+        if ref and not ref.isdigit():
+            st.warning("Veuillez entrer uniquement des chiffres pour la Référence MA.")
+        else:
+            ref = ref.upper()
     else:
-        ref = ref.upper()  # Optionnel
+        # Pour ces types, on autorise vide
+        ref = ref.upper() if ref else ""
 
     # Liste des pays européens
     europe_countries = [
@@ -188,10 +186,13 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
 
     # Bouton d’ajout
     if st.button("📥 Ajouter"):
-        if not matricule or (not ref and not disable_ref) or not pays:
+        # Vérification des champs obligatoires
+        if not matricule or not pays:
             st.warning("❗ Veuillez remplir tous les champs obligatoires.")
+        elif type_doc not in ["FOURGON", "T6BIS", "SUBSAHARIEN"] and not ref:
+            st.warning("❗ La Référence MA est obligatoire pour ce type.")
         else:
-            # Vérification de doublon exact
+            # Vérification doublon exact
             df["Référence_MA_clean"] = safe_str_upper(df["Référence_MA"])
             df["Pays_clean"] = safe_str_upper(df["Pays"])
             df["Type_clean"] = safe_str_upper(df["Type"])
@@ -225,7 +226,7 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
                 new_doc = {
                     "Matricule": matricule,
                     "Déclarant": declarant,
-                    "Référence_MA": ref if not disable_ref else "",
+                    "Référence_MA": ref,
                     "Pays": pays,
                     "Date_ajout": datetime.today().strftime("%Y-%m-%d %H:%M:%S"),
                     "Type": type_doc,
@@ -332,6 +333,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
