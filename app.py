@@ -5,6 +5,11 @@ import os
 
 # --- Chemin persistant sur Streamlit Cloud ---
 FICHIER = "/mnt/data/autorisation_ma.xlsx"
+DOSSIER = os.path.dirname(FICHIER)
+
+# Créer le dossier /mnt/data s'il n'existe pas
+if not os.path.exists(DOSSIER):
+    os.makedirs(DOSSIER)
 
 # --- Initialisation DataFrame ---
 if not os.path.exists(FICHIER):
@@ -24,6 +29,8 @@ def safe_str_upper(s):
 menu = st.sidebar.selectbox("Menu", ["📥 MA Import", "📤 MA Export", "📊 Consulter MA"])
 if "username" not in st.session_state:
     st.session_state.username = "TEST"  # remplacer par login réel
+if "role" not in st.session_state:
+    st.session_state.role = "admin"  # remplacer par rôle réel
 
 # --- Import ---
 if menu == "📥 MA Import" and st.session_state.role != "consult":
@@ -149,7 +156,7 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
     else:
         st.info("Aucune opération clôturée récemment.")
     
-    # Bouton pour télécharger Excel
+    # Télécharger Excel
     with open(FICHIER, "rb") as f:
         st.download_button("⬇️ Télécharger Excel", f, file_name="autorisation_ma.xlsx")
 
