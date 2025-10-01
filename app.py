@@ -143,87 +143,56 @@ elif menu == "👤 Créer un utilisateur" and st.session_state.role == "admin":
 
 # --- Import MA ---
 
-elif menu == "📥 MA Import" and st.session_state.role != "consult":
-    st.subheader("Ajouter une nouvelle autorisation")
-    matricule = st.text_input("Matricule").strip().upper()
-    declarant = st.text_input("Déclarant").strip().upper()
-    ref = st.text_input("Référence_MA").strip()
-
-    # Validation pour que ref soit uniquement chiffres
-    if ref and not ref.isdigit():
-        st.warning("Veuillez entrer uniquement des chiffres pour la Référence MA.")
+if st.button("📥 Ajouter"):
+    # Vérification des champs obligatoires
+    if not matricule or not pays or (not ref and type_doc not in ["FOURGON", "T6BIS", "SUBSAHARIEN"]):
+        st.warning("❗ Veuillez remplir tous les champs obligatoires.")
     else:
-        ref = ref.upper()  # optionnel si tu veux forcer majuscules (inutile si chiffres)
+        # Vérifier doublon exact uniquement si une référence existe
+        if ref:
+            df["Référence_MA_clean"] = safe_str_upper(df["Référence_MA"])
+            df["Pays_clean"] = safe_str_upper(df["Pays"])
+            df["Type_clean"] = safe_str_upper(df["Type"])
+            is_duplicate = df[
+                (df["Référence_MA_clean"] == ref) &
+                (df["Pays_clean"] == pays) &
+                (df["Type_clean"] == type_doc) &
+                ~(
+                    (df["Type_clean"] == "A TEMPS") &
+                    (df["Exporté"].str.upper() == "OUI")
+                )
+            ]
+            if not is_duplicate.empty:
+                st.error("❌ Cette autorisation MA existe déjà (Réf + Type + Pays).")
+                st.stop()
 
-        # Liste pays européens
-        europe_countries = ["","ALBANIE", "ANDORRE", "AUTRICHE", "BELGIQUE", "BOSNIE-HERZÉGOVINE", "BULGARIE", "CROATIE",
-            "DANEMARK", "ESPAGNE", "ESTONIE", "FINLANDE", "FRANCE", "GRÈCE", "HONGRIE", "IRLANDE",
-            "ISLANDE", "ITALIE", "LETTONIE", "LIECHTENSTEIN", "LITUANIE", "LUXEMBOURG", "MACÉDOINE",
-            "MALTE", "MOLDAVIE", "MONACO", "MONTÉNÉGRO", "NORVÈGE", "PAYS-BAS", "POLOGNE", "PORTUGAL",
-            "RÉPUBLIQUE TCHÈQUE", "ROUMANIE", "ROYAUME-UNI", "SAINT-MARIN", "SERBIE", "SLOVAQUIE",
-            "SLOVÉNIE", "SUÈDE", "SUISSE", "UKRAINE", "VATICAN"]
+        # Vérifier si ce camion a déjà une MA active
+        ma_actives = df[
+            (safe_str_upper(df["Matricule"]) == matricule) &
+            (df["Exporté"].str.upper() != "OUI")
+        ]
+        if not ma_actives.empty:
+            st.warning(f"⚠️ Le camion {matricule} possède déjà {len(ma_actives)} MA actives non exportées.")
 
-        pays = st.selectbox("Pays", options=europe_countries).upper()
-        type_doc = st.selectbox("Type MA", [
-            "", "AU VOYAGE", "A TEMPS", "A VIDE", 
-             "FOURGON", "SUBSAHARIEN", "T6BIS"
-        ]).upper()
-        vide_plein = st.selectbox("Vide / Plein", ["", "VIDE", "PLEIN"])
-        observation = st.text_area("Observation (facultatif)").strip().upper()
+        # Ajouter le nouveau document
+        new_doc = {
+            "Matricule": matricule,
+            "Déclarant": declarant,
+            "Référence_MA": ref if ref else "",  # vide si non fourni
+            "Pays": pays,
+            "Date_ajout": datetime.today().strftime("%Y-%m-%d %H:%M:%S"),
+            "Type": type_doc,
+            "Exporté": "Non",
+            "Créé_par": st.session_state.username,
+            "Observation": observation,
+            "Clôturé_par": "",
+            "Date_clôture": "",
+            "Vide_plein": vide_plein
+        }
+        df = pd.concat([df, pd.DataFrame([new_doc])], ignore_index=True)
+        df.to_excel(FICHIER, index=False)
+        st.success("✅ Réf MA ajouté avec succès.")
 
-        if st.button("📥 Ajouter"):
-            if not matricule or not ref or not pays:
-                st.warning("❗ Veuillez remplir tous les champs obligatoires.")
-            else:
-                # Vérifier doublon exact
-                df["Référence_MA_clean"] = safe_str_upper(df["Référence_MA"])
-                df["Pays_clean"] = safe_str_upper(df["Pays"])
-                df["Type_clean"] = safe_str_upper(df["Type"])
-                is_duplicate = df[
-                    (df["Référence_MA_clean"] == ref) &
-                    (df["Pays_clean"] == pays) &
-                    (df["Type_clean"] == type_doc) &
-                    ~(
-                        (df["Type_clean"] == "A TEMPS") &
-                        (df["Exporté"].str.upper() == "OUI")
-                    )
-                ]
-
-                if not is_duplicate.empty:
-                    st.error("❌ Cette autorisation MA existe déjà (Réf + Type + Pays).")
-                else:
-                    # Vérifier si ce camion a déjà une MA active
-                    ma_actives = df[
-                        (safe_str_upper(df["Matricule"]) == matricule) &
-                        (df["Exporté"].str.upper() != "OUI")
-                    ]
-                    if not ma_actives.empty:
-                        st.warning(f"⚠️ Le camion {matricule} possède déjà {len(ma_actives)} MA actives non exportées.")
-
-                    # Ajouter le nouveau document
-                    new_doc = {
-                        "Matricule": matricule,
-                        "Déclarant": declarant,
-                        "Référence_MA": ref,
-                        "Pays": pays,
-                        "Date_ajout": datetime.today().strftime("%Y-%m-%d %H:%M:%S"),
-                        "Type": type_doc,
-                        "Exporté": "Non",
-                        "Créé_par": st.session_state.username,
-                        "Observation": observation,
-                        "Clôturé_par": "",
-                        "Date_clôture": "",
-                        "Vide_plein": vide_plein
-                    }
-                    df = pd.concat([df, pd.DataFrame([new_doc])], ignore_index=True)
-                    df.to_excel(FICHIER, index=False)
-                    st.success("✅ Réf MA ajouté avec succès.")
-
-        # Affichage des 10 dernières opérations import
-        st.subheader("📋 10 dernières opérations")
-        last_imports = df.sort_values(by="Date_ajout", ascending=False).head(10)
-        colonnes_a_afficher = [col for col in last_imports.columns if not col.endswith("_clean")]
-        st.dataframe(last_imports[colonnes_a_afficher])
 
 # --- Export MA ---
 
@@ -305,6 +274,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
