@@ -144,12 +144,11 @@ elif menu == "👤 Créer un utilisateur" and st.session_state.role == "admin":
 # --- Import MA ---
 
 if st.button("📥 Ajouter"):
-    # Vérification des champs obligatoires
     if not matricule or not pays or (not ref and type_doc not in ["FOURGON", "T6BIS", "SUBSAHARIEN"]):
         st.warning("❗ Veuillez remplir tous les champs obligatoires.")
     else:
-        # Vérifier doublon exact uniquement si une référence existe
-        if ref:
+        # Vérifier doublon exact
+        if ref:  # seulement si une référence est fournie
             df["Référence_MA_clean"] = safe_str_upper(df["Référence_MA"])
             df["Pays_clean"] = safe_str_upper(df["Pays"])
             df["Type_clean"] = safe_str_upper(df["Type"])
@@ -162,6 +161,7 @@ if st.button("📥 Ajouter"):
                     (df["Exporté"].str.upper() == "OUI")
                 )
             ]
+
             if not is_duplicate.empty:
                 st.error("❌ Cette autorisation MA existe déjà (Réf + Type + Pays).")
                 st.stop()
@@ -274,6 +274,7 @@ elif menu == "📊 Consulter MA":
     df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
 
     st.dataframe(df_filtered)
+
 
 
 
