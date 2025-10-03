@@ -83,17 +83,19 @@ if st.sidebar.button("Déconnexion"):
 
 # ==========================
 # --- Menu ---
-# ==========================
+
 menu_options = [
     "📥 MA Import",
     "📤 MA Export",
     "📊 Consulter MA",
-    "🔐 Modifier mot de passe",
+    "🔐 Modifier mot de passe"  # par défaut
 ]
+
+# Si admin, insérer "Créer un utilisateur" juste avant "Modifier mot de passe"
 if st.session_state.role == "admin":
-  menu_options.insert(1, "👤 Créer un utilisateur")
+    menu_options.insert(-1, "👤 Créer un utilisateur")
+
 menu = st.sidebar.radio("Menu", menu_options)
-  
 
 # ==========================
 # --- Liste des pays ---
@@ -424,6 +426,7 @@ elif menu == "📊 Consulter MA":
                 file_name="autorisations_filtrees.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
