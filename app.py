@@ -184,40 +184,102 @@ elif menu == "👤 Créer un utilisateur" and st.session_state.role == "admin":
 # ==========================
 # --- MA Import ---
 # ==========================
+# ==========================
+# --- MA Import / Ajout ---
+# ==========================
 elif menu == "📥 MA Import" and st.session_state.role != "consult":
     st.subheader("Ajouter une nouvelle autorisation")
-    matricule = st.text_input("Matricule").strip().upper()
-    declarant = st.text_input("Déclarant").strip().upper()
-    type_doc = st.selectbox("Type MA", ["","AU VOYAGE","A TEMPS","A VIDE","FOURGON","SUBSAHARIEN","T6BIS"]).upper()
-    ref = st.text_input("Référence MA").strip()
-    pays = st.selectbox("Pays", options=europe_countries).upper()
-    vide_plein = st.selectbox("Vide / Plein", ["", "VIDE", "PLEIN"])
-    observation = st.text_area("Observation").strip().upper()
 
+    # --- Champs formulaire ---
+    matricule = st.text_input("Matricule", value="").strip().upper()
+    declarant = st.text_input("Déclarant", value="").strip().upper()
+    
+    type_doc = st.selectbox(
+        "Type MA",
+        ["", "AU VOYAGE", "A TEMPS", "A VIDE", "FOURGON", "SUBSAHARIEN", "T6BIS"]
+    ).upper()
+
+    ref = st.text_input("Référence MA (chiffres uniquement si requis)", value="").strip().upper()
+
+    europe_countries = [
+        "", "ALBANIE", "ANDORRE", "AUTRICHE", "BELGIQUE", "BOSNIE-HERZÉGOVINE",
+        "BULGARIE", "CROATIE", "DANEMARK", "ESPAGNE", "ESTONIE", "FINLANDE",
+        "FRANCE", "GRÈCE", "HONGRIE", "IRLANDE", "ISLANDE", "ITALIE",
+        "LETTONIE", "LIECHTENSTEIN", "LITUANIE", "LUXEMBOURG", "MACÉDOINE",
+        "MALTE", "MOLDAVIE", "MONACO", "MONTÉNÉGRO", "NORVÈGE", "PAYS-BAS",
+        "POLOGNE", "PORTUGAL", "RÉPUBLIQUE TCHÈQUE", "ROUMANIE", "ROYAUME-UNI",
+        "SAINT-MARIN", "SERBIE", "SLOVAQUIE", "SLOVÉNIE", "SUÈDE", "SUISSE",
+        "UKRAINE", "VATICAN"
+    ]
+    pays = st.selectbox("Pays", options=europe_countries, index=0).upper()
+    vide_plein = st.selectbox("Vide / Plein", ["", "VIDE", "PLEIN"])
+    observation = st.text_area("Observation (facultatif)", value="").strip().upper()
+
+    # --- Bouton ajout ---
     if st.button("📥 Ajouter"):
-        # Vérifications obligatoires
+        # Vérification champs obligatoires
         if not matricule or not pays:
-            st.warning("❗ Veuillez remplir tous les champs obligatoires")
-        elif type_doc not in ["FOURGON","SUBSAHARIEN","T6BIS"] and not ref:
-            st.warning("❗ La Référence MA est obligatoire pour ce type")
-        elif type_doc not in ["FOURGON","SUBSAHARIEN","T6BIS"] and not ref.isdigit():
-            st.warning("❗ La Référence MA doit être uniquement des chiffres")
+            st.warning("❗ Veuillez remplir tous les champs obligatoires (Matricule et Pays).")
+        elif type_doc not in ["FOURGON", "SUBSAHARIEN", "T6BIS"] and (not ref or not ref.isdigit()):
+            st.error("❌ Référence MA obligatoire et uniquement chiffres pour ce type de MA.")
         else:
-            ma_doc = {
+            # --- Vérifier doublons et MA non exportées ---
+            resp_existing = supabase.table("autorisations_ma").select("*").execute()
+            df_existing = pd.DataFrame(resp_existing.data) if resp_existing.data else pd.DataFrame()
+
+            if not df_existing.empty:
+                # Doublons exacts
+                dup = df_existing[
+                    (safe_str_upper(df_existing["Reference_MA"]) == ref) &
+                    (safe_str_upper(df_existing["Pays"]) == pays) &
+                    (safe_str_upper(df_existing["Type"]) == type_doc)
+                ]
+                if not dup.empty:
+                    st.error("❌ Cette autorisation MA existe déjà (Réf + Type + Pays).")
+                    st.stop()
+
+                # Vérifier si ce camion a déjà une MA non exportée
+                active_ma = df_existing[
+                    (safe_str_upper(df_existing["Matricule"]) == matricule) &
+                    (safe_str_upper(df_existing["Exporte"]) != "OUI")
+                ]
+                if not active_ma.empty:
+                    st.error(f"❌ Le camion {matricule} possède déjà {len(active_ma)} MA actives non exportées. Impossible d'ajouter une nouvelle MA.")
+                    st.stop()
+
+            # --- Préparer le document à insérer ---
+            new_doc = {
                 "Matricule": matricule,
                 "Declarant": declarant,
-                "Reference_MA": ref.upper() if ref else "",
+                "Reference_MA": ref,
                 "Pays": pays,
-                "Type": type_doc,
-                "Cree_par": st.session_state.username,
-                "Exporte": "Non",
-                "Observation": observation,
-                "Vide_plein": vide_plein,
                 "Date_ajout": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Cloture_par": None,
-                "Date_cloture": None
+                "Type": type_doc,
+                "Exporte": "Non",
+                "Cree_par": st.session_state.username,
+                "Observation": observation,
+                "Cloture_par": "",
+                "Date_cloture": "",
+                "Vide_plein": vide_plein
             }
-            insert_ma(ma_doc)
+
+            # --- Insertion dans Supabase ---
+            supabase.table("autorisations_ma").insert(new_doc).execute()
+            st.success("✅ Référence MA ajoutée avec succès.")
+
+        # --- Affichage des 5 derniers ajouts ---
+        resp_last = supabase.table("autorisations_ma").select("*").order("Date_ajout", desc=True).limit(5).execute()
+        df_last = pd.DataFrame(resp_last.data) if resp_last.data else pd.DataFrame()
+        if not df_last.empty:
+            df_last_display = df_last[["id", "Reference_MA", "Matricule", "Pays", "Date_ajout"]].copy()
+            df_last_display = df_last_display.rename(columns={
+                "id": "ID",
+                "Reference_MA": "MA",
+                "Matricule": "N",
+                "Date_ajout": "Date"
+            })
+            st.subheader("📋 5 derniers ajouts")
+            st.dataframe(df_last_display)
 
 # ==========================
 # --- MA Export / Clôture ---
@@ -362,6 +424,7 @@ elif menu == "📊 Consulter MA":
                 file_name="autorisations_filtrees.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
