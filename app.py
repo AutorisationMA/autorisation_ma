@@ -156,7 +156,7 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.username = username
             st.session_state.role = role
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Nom d'utilisateur ou mot de passe incorrect.")
     st.stop()
@@ -165,7 +165,7 @@ st.sidebar.write(f"✅ Connecté : {st.session_state.username} ({st.session_stat
 if st.sidebar.button("Déconnexion"):
     st.session_state.logged_in = False
     st.session_state.username = None
-    st.experimental_rerun()
+    st.rerun()
 
 menu_options = [
     "🔐 Modifier mot de passe",
@@ -364,3 +364,4 @@ elif menu == "📊 Consulter MA":
         )
     else:
         st.info("Aucune donnée à exporter.")
+
