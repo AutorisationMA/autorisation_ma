@@ -259,8 +259,8 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
                 "Cree_par": st.session_state.username,
                 "Observation": observation,
                 "Cloture_par": "",
-                "Date_cloture": "",
-                "Vide_plein": vide_plein
+                "Date_cloture": None,
+                "Vide_plein": vide_plein if vide_plein else ""
             }
 
             # --- Insertion dans Supabase ---
@@ -424,6 +424,7 @@ elif menu == "📊 Consulter MA":
                 file_name="autorisations_filtrees.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
