@@ -249,21 +249,28 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
         if df_filtered.empty:
             st.info("Aucun résultat ne correspond à votre recherche")
         else:
-            # --- Affichage des colonnes essentielles ---
-            df_display = df_filtered[["Reference_MA", "Matricule", "Pays", "Date_ajout"]].copy()
+            # --- Affichage colonnes essentielles ---
+            df_display = df_filtered[["id", "Reference_MA", "Matricule", "Pays", "Date_ajout"]].copy()
             df_display = df_display.rename(columns={
+                "id": "ID",
                 "Reference_MA": "MA",
                 "Matricule": "N",
                 "Date_ajout": "Date"
             })
             st.dataframe(df_display)
 
-            # Choix de la MA à clôturer
-            selected_ref = st.selectbox("Sélectionner une MA à clôturer", df_filtered["Reference_MA"])
+            # --- Selectbox améliorée avec ID | N | MA | Pays | Date ---
+            select_options = [
+                f"{row['ID']} | {row['N']} | {row['MA']} | {row['Pays']} | {row['Date']}"
+                for _, row in df_display.iterrows()
+            ]
+            selected_label = st.selectbox("Sélectionner une MA à clôturer", select_options)
+
+            # Récupérer la MA correspondant au label sélectionné
+            selected_id = int(selected_label.split(" | ")[0])
+            type_selected = df_filtered[df_filtered["id"] == selected_id]["Type"].iloc[0].upper()
 
             if st.button("📤 Clôturer la sélection"):
-                # Vérifier type spécial
-                type_selected = df_filtered[df_filtered["Reference_MA"] == selected_ref]["Type"].iloc[0].upper()
                 if type_selected in ["FOURGON", "SUBSAHARIEN", "T6BIS"]:
                     st.warning(f"⚠️ Attention : vous clôturez une MA de type {type_selected}. Confirmez ci-dessous.")
                     if st.button(f"✅ Confirmer clôture {type_selected}"):
@@ -271,30 +278,32 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
                             "Exporte": "Oui",
                             "Cloture_par": st.session_state.username,
                             "Date_cloture": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }).eq("Reference_MA", selected_ref).execute()
-                        st.success(f"✅ MA {selected_ref} clôturée")
+                        }).eq("id", selected_id).execute()
+                        st.success(f"✅ MA {selected_label} clôturée")
                 else:
                     # Clôture normale
                     supabase.table("autorisations_ma").update({
                         "Exporte": "Oui",
                         "Cloture_par": st.session_state.username,
                         "Date_cloture": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }).eq("Reference_MA", selected_ref).execute()
-                    st.success(f"✅ MA {selected_ref} clôturée")
+                    }).eq("id", selected_id).execute()
+                    st.success(f"✅ MA {selected_label} clôturée")
 
-        # --- Affichage des 10 dernières clôtures ---
+        # --- 10 dernières clôtures ---
         resp_closed = supabase.table("autorisations_ma").select("*").eq("Exporte", "Oui").order("Date_cloture", desc=True).limit(10).execute()
         df_closed = pd.DataFrame(resp_closed.data) if resp_closed.data else pd.DataFrame()
 
         if not df_closed.empty:
-            df_closed_display = df_closed[["Reference_MA", "Matricule", "Pays", "Date_cloture"]].copy()
+            df_closed_display = df_closed[["id", "Reference_MA", "Matricule", "Pays", "Date_cloture"]].copy()
             df_closed_display = df_closed_display.rename(columns={
+                "id": "ID",
                 "Reference_MA": "MA",
                 "Matricule": "N",
                 "Date_cloture": "Date"
             })
             st.subheader("📋 10 dernières clôtures")
             st.dataframe(df_closed_display)
+
 
 # ==========================
 # --- Consultation / Export ---
@@ -353,4 +362,5 @@ elif menu == "📊 Consulter MA":
                 file_name="autorisations_filtrees.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
