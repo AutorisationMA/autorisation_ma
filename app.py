@@ -249,47 +249,61 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
                 }).eq("Reference_MA", selected_ref).execute()
                 st.success(f"✅ MA {selected_ref} clôturée")
 
+
 # ==========================
 # --- Consultation / Export ---
 # ==========================
 elif menu == "📊 Consulter MA":
     st.subheader("Filtrer les autorisations MA")
+
+    # Récupération des données depuis Supabase
     resp = supabase.table("autorisations_ma").select("*").execute()
     df = pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
+
     if df.empty:
         st.info("Aucune donnée disponible")
     else:
-        matricule_search = st.text_input("🔍 Recherche par matricule").strip()
-        pays_sel = st.multiselect("Pays", options=df["Pays"].dropna().unique())
-        type_sel = st.multiselect("Type MA", options=df["Type"].dropna().unique())
-        date_start = st.date_input("Date début")
-        date_end = st.date_input("Date fin")
+        # --- Champs de recherche initialement vides ---
+        matricule_search = st.text_input("🔍 Recherche par matricule", value="")
+        pays_sel = st.multiselect("Pays", options=sorted(df["Pays"].dropna().unique()), default=[])
+        type_sel = st.multiselect("Type MA", options=sorted(df["Type"].dropna().unique()), default=[])
+        date_start = st.date_input("Date début", value=None)
+        date_end = st.date_input("Date fin", value=None)
+
+        # Assure que Date_ajout est datetime
         df["Date_ajout"] = pd.to_datetime(df["Date_ajout"], errors='coerce')
 
+        # --- Filtrage dynamique ---
+        df_filtered = df.copy()
         if matricule_search:
-            df = df[safe_str_upper(df["Matricule"]).str.contains(matricule_search)]
+            df_filtered = df_filtered[safe_str_upper(df_filtered["Matricule"]).str.contains(matricule_search)]
         if pays_sel:
-            df = df[df["Pays"].isin(pays_sel)]
+            df_filtered = df_filtered[df_filtered["Pays"].isin(pays_sel)]
         if type_sel:
-            df = df[df["Type"].isin(type_sel)]
+            df_filtered = df_filtered[df_filtered["Type"].isin(type_sel)]
         if date_start:
-            df = df[df["Date_ajout"] >= pd.Timestamp(date_start)]
+            df_filtered = df_filtered[df_filtered["Date_ajout"] >= pd.Timestamp(date_start)]
         if date_end:
-            df = df[df["Date_ajout"] <= pd.Timestamp(date_end)]
+            df_filtered = df_filtered[df_filtered["Date_ajout"] <= pd.Timestamp(date_end)]
 
-        df = df.sort_values(by="Date_ajout", ascending=False)
-        if df.empty:
-            st.info("Aucun résultat après filtrage")
+        df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
+
+        # --- Messages et affichage ---
+        if df_filtered.empty:
+            st.info("Aucun résultat ne correspond à votre recherche")
         else:
-            st.dataframe(df)
+            st.dataframe(df_filtered)
 
             # 10 dernières opérations
             st.subheader("📋 10 dernières opérations")
-            st.dataframe(df.head(10))
+            st.dataframe(df_filtered.head(10))
 
             # Export Excel
             buffer = io.BytesIO()
-            df.to_excel(buffer, index=False)
-            st.download_button("📥 Télécharger en Excel", buffer.getvalue(),
-                               file_name="autorisations_filtrees.xlsx",
-                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            df_filtered.to_excel(buffer, index=False)
+            st.download_button(
+                label="📥 Télécharger en Excel",
+                data=buffer.getvalue(),
+                file_name="autorisations_filtrees.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
