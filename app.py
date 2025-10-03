@@ -85,10 +85,10 @@ if st.sidebar.button("Déconnexion"):
 # --- Menu ---
 # ==========================
 menu_options = [
-    "🔐 Modifier mot de passe",
     "📥 MA Import",
     "📤 MA Export",
-    "📊 Consulter MA"
+    "📊 Consulter MA",
+    "🔐 Modifier mot de passe",
 ]
 if st.session_state.role == "admin":
     menu_options.insert(1, "👤 Créer un utilisateur")
@@ -424,6 +424,7 @@ elif menu == "📊 Consulter MA":
                 file_name="autorisations_filtrees.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
 
