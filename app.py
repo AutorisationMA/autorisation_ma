@@ -188,7 +188,7 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
     st.subheader("Ajouter une nouvelle autorisation")
     matricule = st.text_input("Matricule").strip().upper()
     declarant = st.text_input("Déclarant").strip().upper()
-    type_doc = st.selectbox("Type MA", ["AU VOYAGE","A TEMPS","A VIDE","FOURGON","SUBSAHARIEN","T6BIS"]).upper()
+    type_doc = st.selectbox("Type MA", ["","AU VOYAGE","A TEMPS","A VIDE","FOURGON","SUBSAHARIEN","T6BIS"]).upper()
     ref = st.text_input("Référence MA").strip()
     pays = st.selectbox("Pays", options=europe_countries).upper()
     vide_plein = st.selectbox("Vide / Plein", ["", "VIDE", "PLEIN"])
@@ -362,5 +362,6 @@ elif menu == "📊 Consulter MA":
                 file_name="autorisations_filtrees.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
 
 
