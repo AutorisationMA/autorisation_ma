@@ -3,6 +3,7 @@ import pandas as pd
 import hashlib
 from datetime import datetime
 from supabase import create_client, Client
+import io
 
 # ==========================
 # --- Connexion Supabase ---
@@ -11,17 +12,14 @@ SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
 # ==========================
 # --- Utils / Hashing ---
 # ==========================
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
-
 def safe_str_upper(series):
     return series.astype(str).fillna('').str.strip().str.upper()
-
 
 # ==========================
 # --- Gestion utilisateurs ---
@@ -30,10 +28,8 @@ def load_users() -> pd.DataFrame:
     resp = supabase.table("users").select("*").execute()
     return pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
 
-
 def save_user(user: dict):
     supabase.table("users").insert(user).execute()
-
 
 def check_login(username: str, password: str):
     users = load_users()
@@ -44,7 +40,6 @@ def check_login(username: str, password: str):
         return is_valid, role
     return False, None
 
-
 def update_password(username: str, new_password: str) -> bool:
     users = load_users()
     user = users[users["username"] == username]
@@ -52,7 +47,6 @@ def update_password(username: str, new_password: str) -> bool:
         supabase.table("users").update({"password_hash": hash_password(new_password)}).eq("username", username).execute()
         return True
     return False
-
 
 # ==========================
 # --- Authentification ---
@@ -87,7 +81,6 @@ if st.sidebar.button("Déconnexion"):
     st.session_state.role = None
     st.rerun()
 
-
 # ==========================
 # --- Menu ---
 # ==========================
@@ -97,40 +90,57 @@ menu_options = [
     "📤 MA Export",
     "📊 Consulter MA"
 ]
-
 if st.session_state.role == "admin":
     menu_options.insert(1, "👤 Créer un utilisateur")
 
 menu = st.sidebar.radio("Menu", menu_options)
 
+# ==========================
+# --- Liste des pays ---
+# ==========================
+europe_countries = [
+    "", "ALBANIE", "ANDORRE", "AUTRICHE", "BELGIQUE", "BOSNIE-HERZÉGOVINE",
+    "BULGARIE", "CROATIE", "DANEMARK", "ESPAGNE", "ESTONIE", "FINLANDE",
+    "FRANCE", "GRÈCE", "HONGRIE", "IRLANDE", "ISLANDE", "ITALIE",
+    "LETTONIE", "LIECHTENSTEIN", "LITUANIE", "LUXEMBOURG", "MACÉDOINE",
+    "MALTE", "MOLDAVIE", "MONACO", "MONTÉNÉGRO", "NORVÈGE", "PAYS-BAS",
+    "POLOGNE", "PORTUGAL", "RÉPUBLIQUE TCHÈQUE", "ROUMANIE", "ROYAUME-UNI",
+    "SAINT-MARIN", "SERBIE", "SLOVAQUIE", "SLOVÉNIE", "SUÈDE", "SUISSE",
+    "UKRAINE", "VATICAN"
+]
 
 # ==========================
-# --- Fonctions MA ---
+# --- Fonctions MA robustes ---
 # ==========================
 def insert_ma(new_doc: dict):
-    """Insère une nouvelle MA dans Supabase avec vérification des doublons"""
-    resp = supabase.table("autorisations_ma").select("*").execute()
-    df = pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
-
+    """Insère une nouvelle MA dans Supabase en évitant les colonnes inexistantes"""
+    # Colonnes existantes
+    resp = supabase.table("autorisations_ma").select("*").limit(1).execute()
+    columns_in_table = resp.data[0].keys() if resp.data else [
+        "Matricule","Declarant","Reference_MA","Pays","Type","Exporte",
+        "Observation","Vide_plein","Date_ajout","Cree_par","Cloture_par","Date_cloture"
+    ]
+    # Vérification doublon
+    resp2 = supabase.table("autorisations_ma").select("*").execute()
+    df = pd.DataFrame(resp2.data) if resp2.data else pd.DataFrame()
     if not df.empty:
         df["Reference_MA_clean"] = safe_str_upper(df["Reference_MA"])
         df["Pays_clean"] = safe_str_upper(df["Pays"])
         df["Type_clean"] = safe_str_upper(df["Type"])
-
         ref = str(new_doc.get("Reference_MA", "")).upper().strip()
         pays = str(new_doc.get("Pays", "")).upper().strip()
         typ = str(new_doc.get("Type", "")).upper().strip()
-
         doublon = df[
             (df["Reference_MA_clean"] == ref) &
             (df["Pays_clean"] == pays) &
             (df["Type_clean"] == typ)
         ]
         if not doublon.empty:
-            st.warning(f"⚠️ Cette autorisation MA existe déjà ({ref} - {typ} - {pays})")
+            st.warning(f"⚠️ Cette MA existe déjà ({ref} - {typ} - {pays})")
             return False
 
-    clean_doc = {k: v for k, v in new_doc.items() if not k.endswith("_clean")}
+    # Nettoyer doc selon colonnes existantes
+    clean_doc = {k: v for k, v in new_doc.items() if k in columns_in_table}
     try:
         supabase.table("autorisations_ma").insert(clean_doc).execute()
         st.success(f"✅ MA {new_doc.get('Reference_MA')} ajoutée")
@@ -138,7 +148,6 @@ def insert_ma(new_doc: dict):
     except Exception as e:
         st.error(f"Erreur insertion : {e}")
         return False
-
 
 # ==========================
 # --- Modifier mot de passe ---
@@ -158,7 +167,6 @@ if menu == "🔐 Modifier mot de passe":
                 st.error("❌ Les nouveaux mots de passe ne correspondent pas ou sont vides.")
         else:
             st.error("❌ Mot de passe actuel incorrect.")
-
 
 # ==========================
 # --- Création utilisateur ---
@@ -186,22 +194,21 @@ elif menu == "👤 Créer un utilisateur" and st.session_state.role == "admin":
                 })
                 st.success(f"✅ Utilisateur '{new_username}' ({new_role}) créé")
 
-
 # ==========================
-# --- MA Import Formulaire ---
+# --- MA Import ---
 # ==========================
 elif menu == "📥 MA Import" and st.session_state.role != "consult":
     st.subheader("Ajouter une nouvelle autorisation")
     matricule = st.text_input("Matricule").strip().upper()
     declarant = st.text_input("Déclarant").strip().upper()
-    type_doc = st.selectbox("Type MA", ["AU VOYAGE", "A TEMPS", "A VIDE", "FOURGON", "SUBSAHARIEN", "T6BIS"]).upper()
+    type_doc = st.selectbox("Type MA", ["AU VOYAGE","A TEMPS","A VIDE","FOURGON","SUBSAHARIEN","T6BIS"]).upper()
     ref = st.text_input("Référence MA").strip()
-    pays = st.text_input("Pays").strip().upper()
+    pays = st.selectbox("Pays", options=europe_countries).upper()
     vide_plein = st.selectbox("Vide / Plein", ["", "VIDE", "PLEIN"])
     observation = st.text_area("Observation").strip().upper()
 
     if st.button("📥 Ajouter"):
-        if not matricule or not pays or (type_doc not in ["FOURGON", "T6BIS", "SUBSAHARIEN"] and not ref):
+        if not matricule or not pays or (type_doc not in ["FOURGON","T6BIS","SUBSAHARIEN"] and not ref):
             st.warning("❗ Veuillez remplir tous les champs obligatoires")
         else:
             ma_doc = {
@@ -211,80 +218,82 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
                 "Pays": pays,
                 "Type": type_doc,
                 "Cree_par": st.session_state.username,
+                "Exporte": "Non",
                 "Observation": observation,
                 "Vide_plein": vide_plein,
-                "Date_ajout": datetime.now().isoformat()
+                "Date_ajout": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "Cloture_par": None,
+                "Date_cloture": None
             }
             insert_ma(ma_doc)
-
 
 # ==========================
 # --- MA Export / Clôture ---
 # ==========================
 elif menu == "📤 MA Export" and st.session_state.role != "consult":
     st.subheader("Clôturer une autorisation MA")
-    resp = supabase.table("autorisations_ma").select("*").execute()
-    df = pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
-    df_active = df[df["Exporte"].str.upper() != "OUI"] if not df.empty else pd.DataFrame()
-
-    search_term = st.text_input("🔍 Recherche (matricule ou référence_MA ou Pays)").strip().upper()
-    if search_term and not df_active.empty:
-        df_filtered = df_active[
-            safe_str_upper(df_active["Matricule"]).str.contains(search_term, na=False) |
-            safe_str_upper(df_active["Reference_MA"]).str.contains(search_term, na=False) |
-            safe_str_upper(df_active["Pays"]).str.contains(search_term, na=False)
+    resp = supabase.table("autorisations_ma").select("*").neq("Exporte","Oui").execute()
+    df_ma = pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
+    search_term = st.text_input("Recherche (matricule, réf, pays)").strip().upper()
+    if search_term:
+        df_filtered = df_ma[
+            safe_str_upper(df_ma["Matricule"]).str.contains(search_term) |
+            safe_str_upper(df_ma["Reference_MA"]).str.contains(search_term) |
+            safe_str_upper(df_ma["Pays"]).str.contains(search_term)
         ]
-        if not df_filtered.empty:
-            options = {row["Reference_MA"]: idx for idx, row in df_filtered.iterrows()}
-            selected_label = st.selectbox("Sélectionner une autorisation à clôturer", list(options.keys()))
-            if st.button("📤 Clôturer la sélection"):
-                idx = options[selected_label]
-                type_selected = df_filtered.at[idx, "Type"].upper()
-                supabase.table("autorisations_ma").update({
-                    "Exporte": "Oui",
-                    "Cloture_par": st.session_state.username,
-                    "Date_cloture": datetime.now().isoformat()
-                }).eq("id", df_filtered.at[idx, "id"]).execute()
-                st.success(f"✅ L'autorisation {selected_label} ({type_selected}) a été clôturée")
+    else:
+        df_filtered = df_ma
 
+    if not df_filtered.empty:
+        selected_ref = st.selectbox("Sélectionner une MA à clôturer", df_filtered["Reference_MA"])
+        if st.button("📤 Clôturer la sélection"):
+            supabase.table("autorisations_ma").update({
+                "Exporte": "Oui",
+                "Cloture_par": st.session_state.username,
+                "Date_cloture": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }).eq("Reference_MA", selected_ref).execute()
+            st.success(f"✅ MA {selected_ref} clôturée")
 
 # ==========================
-# --- Consultation MA ---
+# --- Consultation / Export ---
 # ==========================
 elif menu == "📊 Consulter MA":
     st.subheader("Filtrer les autorisations MA")
     resp = supabase.table("autorisations_ma").select("*").execute()
     df = pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
-    if df.empty:
-        st.info("Aucune donnée")
-    else:
-        matricule_search = st.text_input("🔍 Recherche par Matricule").strip().upper()
-        pays_sel = st.multiselect("Pays", options=df["Pays"].dropna().unique())
-        type_sel = st.multiselect("Type MA", options=df["Type"].dropna().unique())
-        date_start = st.date_input("Date début")
-        date_end = st.date_input("Date fin")
-        df_filtered = df.copy()
-        df_filtered["Date_ajout"] = pd.to_datetime(df_filtered["Date_ajout"], errors='coerce')
 
+    matricule_search = st.text_input("🔍 Recherche par matricule").strip()
+    pays_sel = st.multiselect("Pays", options=df["Pays"].dropna().unique() if not df.empty else [])
+    type_sel = st.multiselect("Type MA", options=df["Type"].dropna().unique() if not df.empty else [])
+    date_start = st.date_input("Date début")
+    date_end = st.date_input("Date fin")
+
+    if not df.empty:
+        df["Date_ajout"] = pd.to_datetime(df["Date_ajout"], errors='coerce')
         if matricule_search:
-            df_filtered = df_filtered[safe_str_upper(df_filtered["Matricule"]).str.contains(matricule_search)]
+            df = df[safe_str_upper(df["Matricule"]).str.contains(matricule_search)]
         if pays_sel:
-            df_filtered = df_filtered[df_filtered["Pays"].isin(pays_sel)]
+            df = df[df["Pays"].isin(pays_sel)]
         if type_sel:
-            df_filtered = df_filtered[df_filtered["Type"].isin(type_sel)]
+            df = df[df["Type"].isin(type_sel)]
         if date_start:
-            df_filtered = df_filtered[df_filtered["Date_ajout"] >= pd.Timestamp(date_start)]
+            df = df[df["Date_ajout"] >= pd.Timestamp(date_start)]
         if date_end:
-            df_filtered = df_filtered[df_filtered["Date_ajout"] <= pd.Timestamp(date_end)]
+            df = df[df["Date_ajout"] <= pd.Timestamp(date_end)]
 
-        df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
-        st.dataframe(df_filtered)
+        df = df.sort_values(by="Date_ajout", ascending=False)
+        st.dataframe(df)
+
+        # 10 dernières opérations
+        st.subheader("📋 10 dernières opérations")
+        last10 = df.head(10)
+        st.dataframe(last10)
 
         # Export Excel
-        import io
-        if not df_filtered.empty:
-            buffer = io.BytesIO()
-            df_filtered.to_excel(buffer, index=False)
-            st.download_button("📥 Télécharger en Excel", buffer.getvalue(),
-                               file_name="autorisations_filtrees.xlsx",
-                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        buffer = io.BytesIO()
+        df.to_excel(buffer, index=False)
+        st.download_button("📥 Télécharger en Excel", buffer.getvalue(),
+                           file_name="autorisations_filtrees.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    else:
+        st.info("Aucune donnée disponible")
