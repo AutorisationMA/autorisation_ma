@@ -5,8 +5,8 @@ from datetime import datetime
 from supabase import create_client, Client
 
 # --- Connexion à Supabase ---
-SUPABASE_URL = st.secrets["https://pspfgzoxywfeemadcfsy.supabase.co"]
-SUPABASE_KEY = st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBzcGZnem94eXdmZWVtYWRjZnN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0ODU0NjUsImV4cCI6MjA3NTA2MTQ2NX0.YWtxuOKMQu4lq0d-VF1n0dzmTspbGbk2Eh6wANIwvNo"]
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Hachage mot de passe ---
@@ -138,3 +138,4 @@ else:
         st.session_state.role = None
         st.session_state.username = None
         st.experimental_rerun()
+
