@@ -369,68 +369,84 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
             st.dataframe(df_closed_display)
 
 
+
 # ==========================
 # --- Consultation / Export ---
 # ==========================
 elif menu == "📊 Consulter MA":
     st.subheader("Filtrer les autorisations MA")
 
-    # Récupération des données depuis Supabase
-    resp = supabase.table("autorisations_ma").select("*").execute()
+    # Charger toutes les données depuis Supabase
+    resp = supabase.table("autorisations_ma").select("*").order("Date_ajout", desc=True).execute()
     df = pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
 
     if df.empty:
-        st.info("Aucune donnée disponible")
+        st.info("Aucune donnée disponible dans la base.")
     else:
-        # --- Champs de recherche initialement vides ---
-        matricule_search = st.text_input("🔍 Recherche par matricule", value="")
-        pays_sel = st.multiselect("Pays", options=sorted(df["Pays"].dropna().unique()), default=[])
-        type_sel = st.multiselect("Type MA", options=sorted(df["Type"].dropna().unique()), default=[])
-        date_start = st.date_input("Date début", value=None)
-        date_end = st.date_input("Date fin", value=None)
+        # --- Zone de recherche ---
+        with st.form("search_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                matricule_search = st.text_input("🔍 Recherche par matricule", "").strip().upper()
+                pays_sel = st.multiselect("🌍 Pays", options=sorted(df["Pays"].dropna().unique()))
+            with col2:
+                type_sel = st.multiselect("📦 Type MA", options=sorted(df["Type"].dropna().unique()))
+                date_start = st.date_input("📅 Date début", value=None)
+                date_end = st.date_input("📅 Date fin", value=None)
 
-        # Assure que Date_ajout est datetime
-        df["Date_ajout"] = pd.to_datetime(df["Date_ajout"], errors='coerce')
+            col_btn1, col_btn2 = st.columns([1, 1])
+            with col_btn1:
+                submit_search = st.form_submit_button("🔎 Rechercher")
+            with col_btn2:
+                reset_filters = st.form_submit_button("♻️ Réinitialiser les filtres")
 
-        # --- Filtrage dynamique ---
-        df_filtered = df.copy()
-        if matricule_search:
-            df_filtered = df_filtered[safe_str_upper(df_filtered["Matricule"]).str.contains(matricule_search)]
-        if pays_sel:
-            df_filtered = df_filtered[df_filtered["Pays"].isin(pays_sel)]
-        if type_sel:
-            df_filtered = df_filtered[df_filtered["Type"].isin(type_sel)]
-        if date_start:
-            df_filtered = df_filtered[df_filtered["Date_ajout"] >= pd.Timestamp(date_start)]
-        if date_end:
-            df_filtered = df_filtered[df_filtered["Date_ajout"] <= pd.Timestamp(date_end)]
+        # --- Si "Réinitialiser les filtres" ---
+        if reset_filters:
+            st.experimental_rerun()
 
-        df_filtered = df_filtered.sort_values(by="Date_ajout", ascending=False)
-
-        # --- Messages et affichage ---
-        if df_filtered.empty:
-            st.info("Aucun résultat ne correspond à votre recherche")
+        # --- Si l’utilisateur n’a pas encore cliqué sur “Rechercher” ---
+        if not submit_search:
+            st.info("Veuillez saisir vos critères et cliquer sur **Rechercher** pour afficher les résultats.")
         else:
-            st.dataframe(df_filtered)
+            df["Date_ajout"] = pd.to_datetime(df["Date_ajout"], errors='coerce')
+            df_filtered = df.copy()
 
-            # 10 dernières opérations
-            st.subheader("📋 10 dernières opérations")
-            st.dataframe(df_filtered.head(10))
+            # --- Application des filtres ---
+            if matricule_search:
+                df_filtered = df_filtered[df_filtered["Matricule"].str.contains(matricule_search, case=False, na=False)]
+            if pays_sel:
+                df_filtered = df_filtered[df_filtered["Pays"].isin(pays_sel)]
+            if type_sel:
+                df_filtered = df_filtered[df_filtered["Type"].isin(type_sel)]
+            if date_start:
+                df_filtered = df_filtered[df_filtered["Date_ajout"] >= pd.Timestamp(date_start)]
+            if date_end:
+                df_filtered = df_filtered[df_filtered["Date_ajout"] <= pd.Timestamp(date_end)]
 
-            # Export Excel
-            buffer = io.BytesIO()
-            df_filtered.to_excel(buffer, index=False)
-            st.download_button(
-                label="📥 Télécharger en Excel",
-                data=buffer.getvalue(),
-                file_name="autorisations_filtrees.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            # --- Affichage résultat ---
+            if df_filtered.empty:
+                st.warning("⚠️ Aucun résultat trouvé pour ces critères.")
+            else:
+                df_affiche = df_filtered[["Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
+                df_affiche.columns = ["N°", "Réf. MA", "Pays", "Date", "Statut"]
+                st.success(f"✅ {len(df_affiche)} résultat(s) trouvé(s)")
+                st.dataframe(df_affiche, use_container_width=True)
 
+                # --- Export Excel ---
+                buffer = io.BytesIO()
+                df_affiche.to_excel(buffer, index=False, engine="openpyxl")
+                st.download_button(
+                    "📥 Télécharger en Excel",
+                    buffer.getvalue(),
+                    file_name="resultats_filtrés.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
-
-
-
+        # --- 10 dernières opérations (toujours visibles) ---
+        st.subheader("📋 10 dernières opérations")
+        df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
+        df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
+        st.dataframe(df_recent, use_container_width=True)
 
 
 
