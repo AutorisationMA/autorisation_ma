@@ -216,10 +216,7 @@ if st.session_state.role == "admin":
                     st.success(f"✅ Déclarant {new_decl} ajouté avec succès. Rechargez la page pour le voir dans la liste.")
             else:
                 st.warning("Veuillez saisir un nom valide.")
-
-    
-    
-    type_doc = st.selectbox(
+type_doc = st.selectbox(
         "Type MA",
         ["", "AU VOYAGE", "A TEMPS", "A VIDE", "FOURGON", "SUBSAHARIEN", "T6BIS"]
     ).upper()
@@ -500,6 +497,7 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
 
 
 
