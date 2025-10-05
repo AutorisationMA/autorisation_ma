@@ -194,7 +194,30 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
 
     # --- Champs formulaire ---
     matricule = st.text_input("Matricule", value="").strip().upper()
-    declarant = st.text_input("Déclarant", value="").strip().upper()
+    
+    # --- Déclarant relié à Supabase ---
+resp_decl = supabase.table("declarants").select("nom").execute()
+liste_decl = sorted([d["nom"] for d in resp_decl.data]) if resp_decl.data else []
+
+# Sélection ou ajout d’un nouveau déclarant
+declarant = st.selectbox("Déclarant", [""] + liste_decl)
+
+# Si administrateur → possibilité d’ajouter un nouveau déclarant
+if st.session_state.role == "admin":
+    with st.expander("➕ Ajouter un nouveau déclarant"):
+        new_decl = st.text_input("Nom du nouveau déclarant").strip().upper()
+        if st.button("✅ Enregistrer le déclarant"):
+            if new_decl:
+                # Vérifie doublon
+                if new_decl in liste_decl:
+                    st.warning("⚠️ Ce déclarant existe déjà.")
+                else:
+                    supabase.table("declarants").insert({"nom": new_decl}).execute()
+                    st.success(f"✅ Déclarant {new_decl} ajouté avec succès. Rechargez la page pour le voir dans la liste.")
+            else:
+                st.warning("Veuillez saisir un nom valide.")
+
+    
     
     type_doc = st.selectbox(
         "Type MA",
@@ -477,6 +500,7 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
 
 
 
