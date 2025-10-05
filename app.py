@@ -350,15 +350,10 @@ except Exception as e:
 
 
 
-
-
-
-
 # ==========================
 # --- Consultation / Export ---
 # ==========================
-
-    elif menu == "📊 Consulter MA":
+elif menu == "📊 Consulter MA":
     st.subheader("Filtrer les autorisations MA")
 
     # Charger toutes les données depuis Supabase
@@ -384,11 +379,11 @@ except Exception as e:
         pays_options = sorted(df["Pays"].dropna().unique())
         type_options = sorted(df["Type"].dropna().unique())
 
-        # Corriger les defaults invalides (évite StreamlitAPIException)
+        # Corriger les defaults invalides
         st.session_state.pays_sel = [p for p in st.session_state.pays_sel if p in pays_options]
         st.session_state.type_sel = [t for t in st.session_state.type_sel if t in type_options]
 
-        # --- Zone de recherche ---
+        # --- Formulaire de recherche ---
         with st.form("search_form"):
             col1, col2 = st.columns(2)
             with col1:
@@ -423,7 +418,7 @@ except Exception as e:
             st.session_state.type_sel = []
             st.session_state.date_start = None
             st.session_state.date_end = None
-            st.rerun()
+            st.experimental_rerun()  # 🔹 relance l'app pour vider les champs
 
         # --- Si pas encore de recherche ---
         if not submit_search:
@@ -473,8 +468,3 @@ except Exception as e:
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
-
-
-
-
-
