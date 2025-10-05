@@ -370,7 +370,6 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
 
 
 
-# --- 📊 CONSULTATION MA ---
 # ==========================
 # --- Consultation / Export ---
 # ==========================
@@ -384,7 +383,7 @@ elif menu == "📊 Consulter MA":
     if df.empty:
         st.info("Aucune donnée disponible dans la base.")
     else:
-        # --- Initialisation des variables (session_state) ---
+        # --- Initialisation des variables de session ---
         if "matricule_search" not in st.session_state:
             st.session_state.matricule_search = ""
         if "pays_sel" not in st.session_state:
@@ -396,6 +395,14 @@ elif menu == "📊 Consulter MA":
         if "date_end" not in st.session_state:
             st.session_state.date_end = None
 
+        # --- Options disponibles ---
+        pays_options = sorted(df["Pays"].dropna().unique())
+        type_options = sorted(df["Type"].dropna().unique())
+
+        # Corriger les defaults invalides (évite StreamlitAPIException)
+        st.session_state.pays_sel = [p for p in st.session_state.pays_sel if p in pays_options]
+        st.session_state.type_sel = [t for t in st.session_state.type_sel if t in type_options]
+
         # --- Zone de recherche ---
         with st.form("search_form"):
             col1, col2 = st.columns(2)
@@ -406,13 +413,13 @@ elif menu == "📊 Consulter MA":
                 ).strip().upper()
                 pays_sel = st.multiselect(
                     "🌍 Pays",
-                    options=sorted(df["Pays"].dropna().unique()),
+                    options=pays_options,
                     default=st.session_state.pays_sel
                 )
             with col2:
                 type_sel = st.multiselect(
                     "📦 Type MA",
-                    options=sorted(df["Type"].dropna().unique()),
+                    options=type_options,
                     default=st.session_state.type_sel
                 )
                 date_start = st.date_input("📅 Date début", value=st.session_state.date_start)
@@ -424,7 +431,7 @@ elif menu == "📊 Consulter MA":
             with col_btn2:
                 reset_filters = st.form_submit_button("♻️ Réinitialiser les filtres")
 
-        # --- Réinitialisation complète des filtres ---
+        # --- Réinitialiser les filtres ---
         if reset_filters:
             st.session_state.matricule_search = ""
             st.session_state.pays_sel = []
@@ -433,11 +440,11 @@ elif menu == "📊 Consulter MA":
             st.session_state.date_end = None
             st.rerun()
 
-        # --- Si l’utilisateur n’a pas encore cliqué sur “Rechercher” ---
+        # --- Si pas encore de recherche ---
         if not submit_search:
             st.info("Veuillez saisir vos critères et cliquer sur **Rechercher** pour afficher les résultats.")
         else:
-            df["Date_ajout"] = pd.to_datetime(df["Date_ajout"], errors='coerce')
+            df["Date_ajout"] = pd.to_datetime(df["Date_ajout"], errors="coerce")
             df_filtered = df.copy()
 
             # --- Application des filtres ---
