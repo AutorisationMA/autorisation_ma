@@ -192,31 +192,32 @@ elif menu == "👤 Créer un utilisateur" and st.session_state.role == "admin":
 elif menu == "📥 MA Import" and st.session_state.role != "consult":
     st.subheader("Ajouter une nouvelle autorisation")
 
-    # --- Champ Matricule ---
-    matricule = st.text_input("Matricule", value="").strip().upper()
+    # --- Recherche dynamique de déclarant ---
+    st.markdown("### 🔍 Déclarant")
+    search_decl = st.text_input("Rechercher un déclarant (tapez quelques lettres)").strip().upper()
 
-    # --- Déclarant relié à Supabase ---
-    resp_decl = supabase.table("declarants").select("nom").execute()
-    liste_decl = sorted([d["nom"] for d in resp_decl.data]) if resp_decl.data else []
+    declarants = []
+    if search_decl:
+        resp_decl = supabase.table("declarants").select("nom").ilike("nom", f"%{search_decl}%").limit(20).execute()
+        declarants = [d["nom"] for d in resp_decl.data]
 
-    # Sélection ou ajout d’un nouveau déclarant
-    declarant = st.selectbox("Déclarant", [""] + liste_decl)
-
-    # Si admin, possibilité d’ajouter un nouveau déclarant
-    if st.session_state.role == "admin":
-        with st.expander("➕ Ajouter un nouveau déclarant"):
-            new_decl = st.text_input("Nom du nouveau déclarant").strip().upper()
-            if st.button("✅ Enregistrer le déclarant"):
-                if new_decl:
-                    if new_decl in liste_decl:
-                        st.warning("⚠️ Ce déclarant existe déjà.")
-                    else:
-                        supabase.table("declarants").insert({"nom": new_decl}).execute()
-                        st.success(f"✅ Déclarant {new_decl} ajouté avec succès. Rechargez la page pour le voir dans la liste.")
+    if declarants:
+        declarant = st.selectbox("Sélectionnez un déclarant", options=declarants)
+    else:
+        declarant = st.text_input("Ajouter un nouveau déclarant si non trouvé").strip().upper()
+        # Si l'utilisateur a saisi un nouveau déclarant
+        if declarant:
+            if st.button("➕ Ajouter ce déclarant dans la base"):
+                # Vérifier s’il existe déjà
+                check_decl = supabase.table("declarants").select("*").eq("nom", declarant).execute()
+                if check_decl.data:
+                    st.warning("⚠️ Ce déclarant existe déjà.")
                 else:
-                    st.warning("Veuillez saisir un nom valide.")
+                    supabase.table("declarants").insert({"nom": declarant}).execute()
+                    st.success("✅ Nouveau déclarant ajouté avec succès.")
 
-    # --- Autres champs ---
+    # --- Autres champs du formulaire ---
+    matricule = st.text_input("Matricule", value="").strip().upper()
     type_doc = st.selectbox(
         "Type MA",
         ["", "AU VOYAGE", "A TEMPS", "A VIDE", "FOURGON", "SUBSAHARIEN", "T6BIS"]
@@ -245,10 +246,10 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
         elif type_doc not in ["FOURGON", "SUBSAHARIEN", "T6BIS"] and (not ref or not ref.isdigit()):
             st.error("❌ Référence MA obligatoire et uniquement chiffres pour ce type de MA.")
         else:
+            # Vérifier doublons et MA actives
             resp_existing = supabase.table("autorisations_ma").select("*").execute()
             df_existing = pd.DataFrame(resp_existing.data) if resp_existing.data else pd.DataFrame()
 
-            # Vérifier doublons exacts
             if not df_existing.empty:
                 dup = df_existing[
                     (safe_str_upper(df_existing["Reference_MA"]) == ref) &
@@ -264,10 +265,10 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
                     (safe_str_upper(df_existing["Exporte"]) != "OUI")
                 ]
                 if not active_ma.empty:
-                    st.error(f"❌ Le camion {matricule} possède déjà {len(active_ma)} MA actives non exportées. Impossible d'ajouter une nouvelle MA.")
+                    st.error(f"❌ Le camion {matricule} possède déjà {len(active_ma)} MA actives non exportées.")
                     st.stop()
 
-            # Insertion nouvelle MA
+            # Insérer la nouvelle MA
             new_doc = {
                 "Matricule": matricule,
                 "Declarant": declarant,
@@ -282,17 +283,25 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
                 "Date_cloture": None,
                 "Vide_plein": vide_plein if vide_plein else ""
             }
+
             supabase.table("autorisations_ma").insert(new_doc).execute()
             st.success("✅ Référence MA ajoutée avec succès.")
+            st.rerun()
 
-        # Affichage 5 derniers ajouts
-        resp_last = supabase.table("autorisations_ma").select("*").order("Date_ajout", desc=True).limit(5).execute()
-        df_last = pd.DataFrame(resp_last.data) if resp_last.data else pd.DataFrame()
-        if not df_last.empty:
-            df_last_display = df_last[["id", "Reference_MA", "Matricule", "Pays", "Date_ajout"]].copy()
-            df_last_display.rename(columns={"id": "ID", "Reference_MA": "MA", "Matricule": "N", "Date_ajout": "Date"}, inplace=True)
-            st.subheader("📋 5 derniers ajouts")
-            st.dataframe(df_last_display)
+    # --- 5 derniers ajouts ---
+    resp_last = supabase.table("autorisations_ma").select("*").order("Date_ajout", desc=True).limit(5).execute()
+    df_last = pd.DataFrame(resp_last.data) if resp_last.data else pd.DataFrame()
+    if not df_last.empty:
+        df_last_display = df_last[["id", "Reference_MA", "Matricule", "Pays", "Date_ajout"]].copy()
+        df_last_display = df_last_display.rename(columns={
+            "id": "ID",
+            "Reference_MA": "MA",
+            "Matricule": "N",
+            "Date_ajout": "Date"
+        })
+        st.subheader("📋 5 derniers ajouts")
+        st.dataframe(df_last_display, use_container_width=True)
+
 
 
 # ==========================
@@ -462,6 +471,7 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
 
 
 
