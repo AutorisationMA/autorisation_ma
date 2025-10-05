@@ -402,7 +402,7 @@ elif menu == "📊 Consulter MA":
 
         # --- Si "Réinitialiser les filtres" ---
         if reset_filters:
-            st.experimental_rerun()
+            st.rerun()
 
         # --- Si l’utilisateur n’a pas encore cliqué sur “Rechercher” ---
         if not submit_search:
@@ -447,6 +447,7 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
 
 
 
