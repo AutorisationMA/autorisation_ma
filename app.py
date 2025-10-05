@@ -286,87 +286,59 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
 # ==========================
 # --- MA Export / Clôture ---
 # ==========================
-# ==========================
-# --- MA Export / Clôture ---
-# ==========================
-elif menu == "📤 MA Export" and st.session_state.role != "consult":
-    st.subheader("Clôturer une autorisation MA")
+# --- MA Export ---
+elif menu == "📤 MA Export":
+    st.subheader("Exporter les autorisations MA")
 
-    # Récupérer MA non exportées
-    resp = supabase.table("autorisations_ma").select("*").neq("Exporte", "Oui").execute()
-    df_ma = pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
+    # --- CHAMPS DE RECHERCHE ---
+    with st.form("export_search_form", clear_on_submit=False):
+        col1, col2, col3 = st.columns([2, 2, 1])
+        with col1:
+            matricule_export = st.text_input("🔍 Recherche par Matricule", st.session_state.get("matricule_export", "")).strip().upper()
+        with col2:
+            ref_export = st.text_input("🔍 Référence MA", st.session_state.get("ref_export", "")).strip().upper()
+        with col3:
+            rechercher = st.form_submit_button("🔍 Rechercher")
+            reset = st.form_submit_button("♻️ Réinitialiser")
 
-    if df_ma.empty:
-        st.info("Aucune MA non exportée disponible")
-    else:
-        # Champs de recherche initialement vides
-        search_term = st.text_input("🔍 Recherche (matricule, MA, pays)", value="").strip().upper()
+    # --- ACTIONS DES BOUTONS ---
+    if reset:
+        st.session_state.matricule_export = ""
+        st.session_state.ref_export = ""
+        st.experimental_rerun()
 
-        df_filtered = df_ma.copy()
-        if search_term:
-            df_filtered = df_filtered[
-                safe_str_upper(df_filtered["Matricule"]).str.contains(search_term) |
-                safe_str_upper(df_filtered["Reference_MA"]).str.contains(search_term) |
-                safe_str_upper(df_filtered["Pays"]).str.contains(search_term)
-            ]
+    if rechercher:
+        st.session_state.matricule_export = matricule_export
+        st.session_state.ref_export = ref_export
 
-        if df_filtered.empty:
-            st.info("Aucun résultat ne correspond à votre recherche")
+    # --- CHARGEMENT DES DONNÉES ---
+    data = supabase.table("autorisations_ma").select("*").execute().data
+    df = pd.DataFrame(data)
+
+    # --- AFFICHAGE CONDITIONNEL ---
+    if st.session_state.get("matricule_export") or st.session_state.get("ref_export"):
+        df_filtered = df.copy()
+        if st.session_state.get("matricule_export"):
+            df_filtered = df_filtered[df_filtered["Matricule"].str.contains(st.session_state.matricule_export, case=False, na=False)]
+        if st.session_state.get("ref_export"):
+            df_filtered = df_filtered[df_filtered["Référence_MA"].str.contains(st.session_state.ref_export, case=False, na=False)]
+
+        if not df_filtered.empty:
+            st.success(f"{len(df_filtered)} autorisation(s) trouvée(s).")
+            st.dataframe(df_filtered)
         else:
-            # --- Affichage colonnes essentielles ---
-            df_display = df_filtered[["id", "Reference_MA", "Matricule", "Pays", "Date_ajout"]].copy()
-            df_display = df_display.rename(columns={
-                "id": "ID",
-                "Reference_MA": "MA",
-                "Matricule": "N",
-                "Date_ajout": "Date"
-            })
-            st.dataframe(df_display)
+            st.warning("Aucune autorisation trouvée.")
+    else:
+        st.info("🔎 Veuillez effectuer une recherche pour afficher des résultats.")
 
-            # --- Selectbox améliorée avec ID | N | MA | Pays | Date ---
-            select_options = [
-                f"{row['ID']} | {row['N']} | {row['MA']} | {row['Pays']} | {row['Date']}"
-                for _, row in df_display.iterrows()
-            ]
-            selected_label = st.selectbox("Sélectionner une MA à clôturer", select_options)
+    # --- LES 10 DERNIÈRES MA CLÔTURÉES ---
+    st.markdown("### 🕘 10 dernières autorisations clôturées")
+    dernieres_cloturees = df[df["Statut"].str.lower() == "clôturé"].sort_values(by="Date_Fin", ascending=False).head(10)
+    if not dernieres_cloturees.empty:
+        st.dataframe(dernieres_cloturees)
+    else:
+        st.warning("Aucune autorisation clôturée trouvée.")
 
-            # Récupérer la MA correspondant au label sélectionné
-            selected_id = int(selected_label.split(" | ")[0])
-            type_selected = df_filtered[df_filtered["id"] == selected_id]["Type"].iloc[0].upper()
-
-            if st.button("📤 Clôturer la sélection"):
-                if type_selected in ["FOURGON", "SUBSAHARIEN", "T6BIS"]:
-                    st.warning(f"⚠️ Attention : vous clôturez une MA de type {type_selected}. Confirmez ci-dessous.")
-                    if st.button(f"✅ Confirmer clôture {type_selected}"):
-                        supabase.table("autorisations_ma").update({
-                            "Exporte": "Oui",
-                            "Cloture_par": st.session_state.username,
-                            "Date_cloture": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }).eq("id", selected_id).execute()
-                        st.success(f"✅ MA {selected_label} clôturée")
-                else:
-                    # Clôture normale
-                    supabase.table("autorisations_ma").update({
-                        "Exporte": "Oui",
-                        "Cloture_par": st.session_state.username,
-                        "Date_cloture": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }).eq("id", selected_id).execute()
-                    st.success(f"✅ MA {selected_label} clôturée")
-
-        # --- 10 dernières clôtures ---
-        resp_closed = supabase.table("autorisations_ma").select("*").eq("Exporte", "Oui").order("Date_cloture", desc=True).limit(10).execute()
-        df_closed = pd.DataFrame(resp_closed.data) if resp_closed.data else pd.DataFrame()
-
-        if not df_closed.empty:
-            df_closed_display = df_closed[["id", "Reference_MA", "Matricule", "Pays", "Date_cloture"]].copy()
-            df_closed_display = df_closed_display.rename(columns={
-                "id": "ID",
-                "Reference_MA": "MA",
-                "Matricule": "N",
-                "Date_cloture": "Date"
-            })
-            st.subheader("📋 10 dernières clôtures")
-            st.dataframe(df_closed_display)
 
 
 
@@ -488,3 +460,4 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
