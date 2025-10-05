@@ -358,10 +358,7 @@ except Exception as e:
 # --- Consultation / Export ---
 # ==========================
 
-# ==========================
-# --- Consultation / Export ---
-# ==========================
-elif menu == "📊 Consulter MA":
+    elif menu == "📊 Consulter MA":
     st.subheader("Filtrer les autorisations MA")
 
     # Charger toutes les données depuis Supabase
@@ -476,6 +473,7 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
 
 
 
