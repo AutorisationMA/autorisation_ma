@@ -308,7 +308,7 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
         # --- Réinitialiser les champs ---
         if reset_search:
             st.session_state.search_term = ""
-            st.experimental_rerun()
+            st.rerun()
 
         # --- Filtrer uniquement si Rechercher cliqué ---
         if not submit_search:
@@ -498,5 +498,6 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
 
 
