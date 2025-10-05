@@ -286,58 +286,245 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
 # ==========================
 # --- MA Export / Clôture ---
 # ==========================
-# --- MA Export ---
-elif menu == "📤 MA Export":
-    st.subheader("Exporter les autorisations MA")
+# ==========================
+# --- MA Export / Clôture ---
+# ==========================
+elif menu == "📤 MA Export" and st.session_state.role != "consult":
+    st.subheader("Clôturer / Exporter des autorisations MA")
 
-    # --- CHAMPS DE RECHERCHE ---
-    with st.form("export_search_form", clear_on_submit=False):
-        col1, col2, col3 = st.columns([2, 2, 1])
-        with col1:
-            matricule_export = st.text_input("🔍 Recherche par Matricule", st.session_state.get("matricule_export", "")).strip().upper()
-        with col2:
-            ref_export = st.text_input("🔍 Référence MA", st.session_state.get("ref_export", "")).strip().upper()
-        with col3:
-            rechercher = st.form_submit_button("🔍 Rechercher")
-            reset = st.form_submit_button("♻️ Réinitialiser")
+    # --- Helper : trouver le nom réel d'une colonne (tolérant casse/variantes) ---
+    def get_col_name(df, *candidates):
+        # retourne le nom exact de la colonne dans df si trouvé, sinon None
+        cols_map = {c.lower(): c for c in df.columns}
+        for cand in candidates:
+            if cand and cand.lower() in cols_map:
+                return cols_map[cand.lower()]
+        return None
 
-    # --- ACTIONS DES BOUTONS ---
-    if reset:
-        st.session_state.matricule_export = ""
-        st.session_state.ref_export = ""
-        st.experimental_rerun()
+    # --- Récupérer toutes les données ---
+    try:
+        resp = supabase.table("autorisations_ma").select("*").execute()
+        raw = resp.data
+    except Exception as e:
+        st.error(f"Erreur lors du chargement des MA depuis Supabase : {e}")
+        raw = None
 
-    if rechercher:
-        st.session_state.matricule_export = matricule_export
-        st.session_state.ref_export = ref_export
+    df = pd.DataFrame(raw) if raw else pd.DataFrame()
 
-    # --- CHARGEMENT DES DONNÉES ---
-    data = supabase.table("autorisations_ma").select("*").execute().data
-    df = pd.DataFrame(data)
+    # Si pas de données
+    if df.empty:
+        st.info("Aucune MA disponible dans la base.")
+        # On affiche quand même les 10 dernières clôtures (vide ici)
+        st.subheader("📋 10 dernières clôtures")
+        st.info("Aucune opération disponible.")
+    else:
+        # --- Préparer noms de colonnes utiles ---
+        col_id = get_col_name(df, "id", "ID")
+        col_mat = get_col_name(df, "Matricule", "matricule")
+        col_ref = get_col_name(df, "Reference_MA", "Référence_MA", "reference_ma", "reference")
+        col_pays = get_col_name(df, "Pays", "pays")
+        col_date_add = get_col_name(df, "Date_ajout", "date_ajout", "Date", "date")
+        col_exporte = get_col_name(df, "Exporte", "exporte", "Statut", "statut")
+        col_type = get_col_name(df, "Type", "type")
+        col_date_clot = get_col_name(df, "Date_cloture", "date_cloture", "Date_closure", "date_closure")
 
-    # --- AFFICHAGE CONDITIONNEL ---
-    if st.session_state.get("matricule_export") or st.session_state.get("ref_export"):
-        df_filtered = df.copy()
-        if st.session_state.get("matricule_export"):
-            df_filtered = df_filtered[df_filtered["Matricule"].str.contains(st.session_state.matricule_export, case=False, na=False)]
-        if st.session_state.get("ref_export"):
-            df_filtered = df_filtered[df_filtered["Référence_MA"].str.contains(st.session_state.ref_export, case=False, na=False)]
+        # --- FORMULAIRE DE RECHERCHE (vide avant recherche) ---
+        with st.form("export_search_form"):
+            c1, c2, c3 = st.columns([2, 2, 1])
+            with c1:
+                matricule_in = st.text_input("🔍 Matricule", st.session_state.get("export_matricule", "")).strip().upper()
+            with c2:
+                ref_in = st.text_input("🔍 Référence MA", st.session_state.get("export_ref", "")).strip().upper()
+            with c3:
+                # boutons du form (chacun renvoie True quand cliqué)
+                search_btn = st.form_submit_button("🔎 Rechercher")
+                reset_btn = st.form_submit_button("♻️ Réinitialiser")
 
-        if not df_filtered.empty:
-            st.success(f"{len(df_filtered)} autorisation(s) trouvée(s).")
-            st.dataframe(df_filtered)
+        # action Reset : vider le session_state et recharger
+        if reset_btn:
+            st.session_state.export_matricule = ""
+            st.session_state.export_ref = ""
+            st.rerun()
+
+        # si clique Rechercher, on enregistre la recherche
+        if search_btn:
+            st.session_state.export_matricule = matricule_in
+            st.session_state.export_ref = ref_in
+
+        # --- CONDITION D'AFFICHAGE : rien si aucune recherche (champs vides) ---
+        export_m = st.session_state.get("export_matricule", "")
+        export_r = st.session_state.get("export_ref", "")
+        performed_search = bool(export_m or export_r)
+
+        if not performed_search:
+            st.info("🔎 Entrez Matricule ou Référence MA puis cliquez sur 'Rechercher' pour afficher les résultats.")
         else:
-            st.warning("Aucune autorisation trouvée.")
-    else:
-        st.info("🔎 Veuillez effectuer une recherche pour afficher des résultats.")
+            # Appliquer filtres sur le dataframe
+            df_filtered = df.copy()
+            if export_m and col_mat in df_filtered.columns:
+                df_filtered = df_filtered[df_filtered[col_mat].astype(str).str.contains(export_m, case=False, na=False)]
+            if export_r and col_ref in df_filtered.columns:
+                df_filtered = df_filtered[df_filtered[col_ref].astype(str).str.contains(export_r, case=False, na=False)]
 
-    # --- LES 10 DERNIÈRES MA CLÔTURÉES ---
-    st.markdown("### 🕘 10 dernières autorisations clôturées")
-    dernieres_cloturees = df[df["Statut"].str.lower() == "clôturé"].sort_values(by="Date_Fin", ascending=False).head(10)
-    if not dernieres_cloturees.empty:
-        st.dataframe(dernieres_cloturees)
-    else:
-        st.warning("Aucune autorisation clôturée trouvée.")
+            if df_filtered.empty:
+                st.warning("⚠️ Aucun résultat trouvé pour cette recherche.")
+            else:
+                # Créer affichage propre : ID | N | MA | Pays | Date
+                # S'assurer que les colonnes existent sinon remplacer par vide
+                def safe_col(dfrow, col):
+                    return dfrow[col] if (col and col in dfrow.index and pd.notna(dfrow[col])) else ""
+
+                # Construire df_display
+                display_rows = []
+                for _, row in df_filtered.iterrows():
+                    id_val = row.get(col_id) if col_id in row.index else ""
+                    n_val = row.get(col_mat) if col_mat in row.index else ""
+                    ma_val = row.get(col_ref) if col_ref in row.index else ""
+                    pays_val = row.get(col_pays) if col_pays in row.index else ""
+                    date_val = row.get(col_date_add) if col_date_add in row.index else ""
+                    # format date si possible
+                    try:
+                        if pd.notna(date_val):
+                            date_val = pd.to_datetime(date_val).strftime("%Y-%m-%d %H:%M:%S")
+                    except Exception:
+                        pass
+                    display_rows.append({
+                        "ID": id_val,
+                        "N": n_val,
+                        "MA": ma_val,
+                        "Pays": pays_val,
+                        "Date": date_val
+                    })
+                df_display = pd.DataFrame(display_rows)
+
+                st.success(f"✅ {len(df_display)} autorisation(s) trouvée(s).")
+                st.dataframe(df_display, use_container_width=True)
+
+                # Export Excel des résultats filtrés
+                try:
+                    buffer = io.BytesIO()
+                    df_display.to_excel(buffer, index=False, engine="openpyxl")
+                    st.download_button(
+                        "📥 Télécharger les résultats (Excel)",
+                        buffer.getvalue(),
+                        file_name="export_resultats.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                except Exception as e:
+                    st.error(f"Erreur lors de l'export Excel : {e}")
+
+                # --- Sélection et clôture ---
+                # Préparer selectbox avec label "ID | N | MA | Pays | Date"
+                select_opts = [
+                    f"{int(r['ID'])} | {r['N']} | {r['MA']} | {r['Pays']} | {r['Date']}"
+                    for _, r in df_display.iterrows()
+                ]
+                selected_label = st.selectbox("Sélectionner une MA à clôturer", select_opts)
+
+                # Extraire id sélectionné
+                try:
+                    selected_id = int(str(selected_label).split(" | ")[0])
+                except Exception:
+                    st.error("Impossible de lire l'ID sélectionné.")
+                    selected_id = None
+
+                if selected_id is not None:
+                    # Récupérer la ligne complète de df_filtered correspondant à l'id
+                    row_sel = df_filtered[df_filtered[col_id] == selected_id] if col_id in df_filtered.columns else pd.DataFrame()
+                    if row_sel.empty:
+                        # essayer cast string/int mismatch
+                        row_sel = df_filtered[df_filtered[col_id].astype(str) == str(selected_id)] if col_id in df_filtered.columns else pd.DataFrame()
+
+                    if row_sel.empty:
+                        st.error("La MA sélectionnée n'a pas été trouvée (données incohérentes).")
+                    else:
+                        row_sel = row_sel.iloc[0]
+                        type_selected = row_sel.get(col_type, "") if col_type in row_sel.index else ""
+                        type_selected = str(type_selected).upper()
+
+                        # Bouton initial pour demander clôture (créé ici)
+                        if st.button("📤 Clôturer la sélection"):
+                            specials = ["FOURGON", "SUBSAHARIEN", "T6BIS"]
+                            if type_selected in specials:
+                                st.warning(f"⚠️ Attention : vous êtes sur une MA de type {type_selected}. Confirmez la clôture ci-dessous.")
+                                st.session_state["pending_close_id"] = selected_id
+                            else:
+                                # clôture immédiate
+                                try:
+                                    supabase.table("autorisations_ma").update({
+                                        "Exporte": "Oui",
+                                        "Cloture_par": st.session_state.get("username"),
+                                        "Date_cloture": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                    }).eq("id", selected_id).execute()
+                                    st.success(f"✅ MA (ID {selected_id}) clôturée avec succès.")
+                                    # refresh pour afficher changements
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erreur lors de la clôture : {e}")
+
+                        # Si on a mis en session pending_close_id, afficher bouton de confirmation
+                        if st.session_state.get("pending_close_id") == selected_id:
+                            if st.button(f"✅ Confirmer clôture {type_selected}"):
+                                try:
+                                    supabase.table("autorisations_ma").update({
+                                        "Exporte": "Oui",
+                                        "Cloture_par": st.session_state.get("username"),
+                                        "Date_cloture": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                    }).eq("id", selected_id).execute()
+                                    st.success(f"✅ MA (ID {selected_id}) clôturée (confirmé).")
+                                    # nettoie l'état pending et recharge
+                                    del st.session_state["pending_close_id"]
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erreur lors de la clôture confirmée : {e}")
+
+        # --- 10 dernières clôtures (toujours visibles en bas) ---
+        st.subheader("📋 10 dernières clôtures")
+        try:
+            # Filtrer Exporte == Oui (tolérance casse)
+            if col_exporte and col_exporte in df.columns:
+                df_closed = df[df[col_exporte].astype(str).str.upper() == "OUI"].copy()
+            else:
+                # fallback : si pas de colonne Exporte on cherche par Date_cloture non null
+                df_closed = df[df[col_date_clot].notna()] if col_date_clot and col_date_clot in df.columns else pd.DataFrame()
+
+            if not df_closed.empty:
+                # trier par date_cloture si possible, sinon par id
+                if col_date_clot and col_date_clot in df_closed.columns:
+                    df_closed[col_date_clot] = pd.to_datetime(df_closed[col_date_clot], errors="coerce")
+                    df_closed = df_closed.sort_values(by=col_date_clot, ascending=False)
+                elif col_id and col_id in df_closed.columns:
+                    df_closed = df_closed.sort_values(by=col_id, ascending=False)
+
+                # garder colonnes clefs si elles existent
+                cols_keep = []
+                for cand in [col_id, col_mat, col_ref, col_pays, col_date_clot]:
+                    if cand and cand in df_closed.columns:
+                        cols_keep.append(cand)
+
+                df_closed_display = df_closed[cols_keep].head(10).copy()
+                # renommer pour affichage
+                rename_map = {}
+                if col_id in df_closed_display.columns:
+                    rename_map[col_id] = "ID"
+                if col_mat in df_closed_display.columns:
+                    rename_map[col_mat] = "N"
+                if col_ref in df_closed_display.columns:
+                    rename_map[col_ref] = "MA"
+                if col_pays in df_closed_display.columns:
+                    rename_map[col_pays] = "Pays"
+                if col_date_clot in df_closed_display.columns:
+                    rename_map[col_date_clot] = "Date_cloture"
+                df_closed_display = df_closed_display.rename(columns=rename_map)
+                # formater date si presente
+                if "Date_cloture" in df_closed_display.columns:
+                    df_closed_display["Date_cloture"] = pd.to_datetime(df_closed_display["Date_cloture"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
+                st.dataframe(df_closed_display, use_container_width=True)
+            else:
+                st.info("Aucune MA clôturée trouvée.")
+        except Exception as e:
+            st.error(f"Erreur lors du calcul des dernières clôtures : {e}")
+
 
 
 
@@ -460,4 +647,5 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
 
