@@ -194,48 +194,7 @@ elif menu == "📥 MA Import" and st.session_state.role != "consult":
 
     # --- Champs formulaire ---
     matricule = st.text_input("Matricule", value="").strip().upper()
-    # --- Déclarant : Liste dynamique depuis Supabase ---
-def load_declarants():
-    """Charge les noms de déclarants actifs depuis Supabase."""
-    try:
-        response = supabase.table("declarants").select("nom").eq("actif", True).order("nom", desc=False).execute()
-        if response.data:
-            return [d["nom"] for d in response.data]
-        else:
-            return []
-    except Exception as e:
-        st.error(f"Erreur lors du chargement des déclarants : {e}")
-        return []
-
-# --- Charger la liste des déclarants ---
-declarants = load_declarants()
-
-# --- Sélecteur déclarant ---
-declarant = st.selectbox(
-    "🧾 Déclarant",
-    options=declarants if declarants else ["Aucun déclarant disponible"],
-    index=0 if declarants else None,
-)
-
-# --- Option visible uniquement pour l'admin ---
-if st.session_state.role == "admin":
-    with st.expander("➕ Ajouter un nouveau déclarant"):
-        new_decl = st.text_input("Nom du nouveau déclarant").strip().upper()
-        if st.button("✅ Ajouter ce déclarant"):
-            if new_decl:
-                exist = supabase.table("declarants").select("*").eq("nom", new_decl).execute()
-                if exist.data:
-                    st.warning("⚠️ Ce déclarant existe déjà.")
-                else:
-                    resp = supabase.table("declarants").insert({"nom": new_decl}).execute()
-                    if resp.data:
-                        st.success("✅ Déclarant ajouté avec succès.")
-                        st.rerun()
-                    else:
-                        st.error("Erreur lors de l'ajout du déclarant.")
-            else:
-                st.error("Veuillez saisir un nom valide.")
-
+    declarant = st.text_input("Déclarant", value="").strip().upper()
     
     type_doc = st.selectbox(
         "Type MA",
@@ -518,9 +477,6 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
-
-
-
 
 
 
