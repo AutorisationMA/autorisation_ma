@@ -349,7 +349,7 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
                         st.error(f"Erreur lors de la clôture : {update_resp.error.message}")
                     else:
                         st.success(f"✅ MA ID {idx} clôturée avec succès.")
-                        st.experimental_rerun()
+                        st.rerun()
 
         # --- 10 dernières clôtures (toujours visibles) ---
         st.subheader("📋 10 dernières clôtures")
@@ -448,7 +448,7 @@ elif menu == "📊 Consulter MA":
             st.session_state.type_sel = []
             st.session_state.date_start = None
             st.session_state.date_end = None
-            st.experimental_rerun()  # 🔹 relance l'app pour vider les champs
+            st.rerun()  # 🔹 relance l'app pour vider les champs
 
         # --- Si pas encore de recherche ---
         if not submit_search:
@@ -498,6 +498,7 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
 
 
 
