@@ -192,31 +192,32 @@ elif menu == "👤 Créer un utilisateur" and st.session_state.role == "admin":
 elif menu == "📥 MA Import" and st.session_state.role != "consult":
     st.subheader("Ajouter une nouvelle autorisation")
 
-    # --- Champs formulaire ---
+    # --- Champ Matricule ---
     matricule = st.text_input("Matricule", value="").strip().upper()
-    
+
     # --- Déclarant relié à Supabase ---
-resp_decl = supabase.table("declarants").select("nom").execute()
-liste_decl = sorted([d["nom"] for d in resp_decl.data]) if resp_decl.data else []
+    resp_decl = supabase.table("declarants").select("nom").execute()
+    liste_decl = sorted([d["nom"] for d in resp_decl.data]) if resp_decl.data else []
 
-# Sélection ou ajout d’un nouveau déclarant
-declarant = st.selectbox("Déclarant", [""] + liste_decl)
+    # Sélection ou ajout d’un nouveau déclarant
+    declarant = st.selectbox("Déclarant", [""] + liste_decl)
 
-# Si administrateur → possibilité d’ajouter un nouveau déclarant
-if st.session_state.role == "admin":
-    with st.expander("➕ Ajouter un nouveau déclarant"):
-        new_decl = st.text_input("Nom du nouveau déclarant").strip().upper()
-        if st.button("✅ Enregistrer le déclarant"):
-            if new_decl:
-                # Vérifie doublon
-                if new_decl in liste_decl:
-                    st.warning("⚠️ Ce déclarant existe déjà.")
+    # Si admin, possibilité d’ajouter un nouveau déclarant
+    if st.session_state.role == "admin":
+        with st.expander("➕ Ajouter un nouveau déclarant"):
+            new_decl = st.text_input("Nom du nouveau déclarant").strip().upper()
+            if st.button("✅ Enregistrer le déclarant"):
+                if new_decl:
+                    if new_decl in liste_decl:
+                        st.warning("⚠️ Ce déclarant existe déjà.")
+                    else:
+                        supabase.table("declarants").insert({"nom": new_decl}).execute()
+                        st.success(f"✅ Déclarant {new_decl} ajouté avec succès. Rechargez la page pour le voir dans la liste.")
                 else:
-                    supabase.table("declarants").insert({"nom": new_decl}).execute()
-                    st.success(f"✅ Déclarant {new_decl} ajouté avec succès. Rechargez la page pour le voir dans la liste.")
-            else:
-                st.warning("Veuillez saisir un nom valide.")
-type_doc = st.selectbox(
+                    st.warning("Veuillez saisir un nom valide.")
+
+    # --- Autres champs ---
+    type_doc = st.selectbox(
         "Type MA",
         ["", "AU VOYAGE", "A TEMPS", "A VIDE", "FOURGON", "SUBSAHARIEN", "T6BIS"]
     ).upper()
@@ -239,18 +240,16 @@ type_doc = st.selectbox(
 
     # --- Bouton ajout ---
     if st.button("📥 Ajouter"):
-        # Vérification champs obligatoires
         if not matricule or not pays:
             st.warning("❗ Veuillez remplir tous les champs obligatoires (Matricule et Pays).")
         elif type_doc not in ["FOURGON", "SUBSAHARIEN", "T6BIS"] and (not ref or not ref.isdigit()):
             st.error("❌ Référence MA obligatoire et uniquement chiffres pour ce type de MA.")
         else:
-            # --- Vérifier doublons et MA non exportées ---
             resp_existing = supabase.table("autorisations_ma").select("*").execute()
             df_existing = pd.DataFrame(resp_existing.data) if resp_existing.data else pd.DataFrame()
 
+            # Vérifier doublons exacts
             if not df_existing.empty:
-                # Doublons exacts
                 dup = df_existing[
                     (safe_str_upper(df_existing["Reference_MA"]) == ref) &
                     (safe_str_upper(df_existing["Pays"]) == pays) &
@@ -260,7 +259,6 @@ type_doc = st.selectbox(
                     st.error("❌ Cette autorisation MA existe déjà (Réf + Type + Pays).")
                     st.stop()
 
-                # Vérifier si ce camion a déjà une MA non exportée
                 active_ma = df_existing[
                     (safe_str_upper(df_existing["Matricule"]) == matricule) &
                     (safe_str_upper(df_existing["Exporte"]) != "OUI")
@@ -269,7 +267,7 @@ type_doc = st.selectbox(
                     st.error(f"❌ Le camion {matricule} possède déjà {len(active_ma)} MA actives non exportées. Impossible d'ajouter une nouvelle MA.")
                     st.stop()
 
-            # --- Préparer le document à insérer ---
+            # Insertion nouvelle MA
             new_doc = {
                 "Matricule": matricule,
                 "Declarant": declarant,
@@ -284,24 +282,18 @@ type_doc = st.selectbox(
                 "Date_cloture": None,
                 "Vide_plein": vide_plein if vide_plein else ""
             }
-
-            # --- Insertion dans Supabase ---
             supabase.table("autorisations_ma").insert(new_doc).execute()
             st.success("✅ Référence MA ajoutée avec succès.")
 
-        # --- Affichage des 5 derniers ajouts ---
+        # Affichage 5 derniers ajouts
         resp_last = supabase.table("autorisations_ma").select("*").order("Date_ajout", desc=True).limit(5).execute()
         df_last = pd.DataFrame(resp_last.data) if resp_last.data else pd.DataFrame()
         if not df_last.empty:
             df_last_display = df_last[["id", "Reference_MA", "Matricule", "Pays", "Date_ajout"]].copy()
-            df_last_display = df_last_display.rename(columns={
-                "id": "ID",
-                "Reference_MA": "MA",
-                "Matricule": "N",
-                "Date_ajout": "Date"
-            })
+            df_last_display.rename(columns={"id": "ID", "Reference_MA": "MA", "Matricule": "N", "Date_ajout": "Date"}, inplace=True)
             st.subheader("📋 5 derniers ajouts")
             st.dataframe(df_last_display)
+
 
 # ==========================
 # --- MA Export / Clôture ---
@@ -309,16 +301,13 @@ type_doc = st.selectbox(
 elif menu == "📤 MA Export" and st.session_state.role != "consult":
     st.subheader("Clôturer une autorisation MA")
 
-    # Récupérer MA non exportées
     resp = supabase.table("autorisations_ma").select("*").neq("Exporte", "Oui").execute()
     df_ma = pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
 
     if df_ma.empty:
         st.info("Aucune MA non exportée disponible")
     else:
-        # Champs de recherche initialement vides
         search_term = st.text_input("🔍 Recherche (matricule, MA, pays)", value="").strip().upper()
-
         df_filtered = df_ma.copy()
         if search_term:
             df_filtered = df_filtered[
@@ -330,50 +319,26 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
         if df_filtered.empty:
             st.info("Aucun résultat ne correspond à votre recherche")
         else:
-            # --- Affichage des colonnes essentielles ---
             df_display = df_filtered[["Reference_MA", "Matricule", "Pays", "Date_ajout"]].copy()
-            df_display = df_display.rename(columns={
-                "Reference_MA": "MA",
-                "Matricule": "N",
-                "Date_ajout": "Date"
-            })
+            df_display.rename(columns={"Reference_MA": "MA", "Matricule": "N", "Date_ajout": "Date"}, inplace=True)
             st.dataframe(df_display)
 
-            # Choix de la MA à clôturer
             selected_ref = st.selectbox("Sélectionner une MA à clôturer", df_filtered["Reference_MA"])
 
             if st.button("📤 Clôturer la sélection"):
-                # Vérifier type spécial
-                type_selected = df_filtered[df_filtered["Reference_MA"] == selected_ref]["Type"].iloc[0].upper()
-                if type_selected in ["FOURGON", "SUBSAHARIEN", "T6BIS"]:
-                    st.warning(f"⚠️ Attention : vous clôturez une MA de type {type_selected}. Confirmez ci-dessous.")
-                    if st.button(f"✅ Confirmer clôture {type_selected}"):
-                        supabase.table("autorisations_ma").update({
-                            "Exporte": "Oui",
-                            "Cloture_par": st.session_state.username,
-                            "Date_cloture": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }).eq("Reference_MA", selected_ref).execute()
-                        st.success(f"✅ MA {selected_ref} clôturée")
-                else:
-                    # Clôture normale
-                    supabase.table("autorisations_ma").update({
-                        "Exporte": "Oui",
-                        "Cloture_par": st.session_state.username,
-                        "Date_cloture": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }).eq("Reference_MA", selected_ref).execute()
-                    st.success(f"✅ MA {selected_ref} clôturée")
+                supabase.table("autorisations_ma").update({
+                    "Exporte": "Oui",
+                    "Cloture_par": st.session_state.username,
+                    "Date_cloture": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }).eq("Reference_MA", selected_ref).execute()
+                st.success(f"✅ MA {selected_ref} clôturée")
 
-        # --- Affichage des 10 dernières clôtures ---
+        # Affichage 10 dernières clôtures
         resp_closed = supabase.table("autorisations_ma").select("*").eq("Exporte", "Oui").order("Date_cloture", desc=True).limit(10).execute()
         df_closed = pd.DataFrame(resp_closed.data) if resp_closed.data else pd.DataFrame()
-
         if not df_closed.empty:
             df_closed_display = df_closed[["Reference_MA", "Matricule", "Pays", "Date_cloture"]].copy()
-            df_closed_display = df_closed_display.rename(columns={
-                "Reference_MA": "MA",
-                "Matricule": "N",
-                "Date_cloture": "Date"
-            })
+            df_closed_display.rename(columns={"Reference_MA": "MA", "Matricule": "N", "Date_cloture": "Date"}, inplace=True)
             st.subheader("📋 10 dernières clôtures")
             st.dataframe(df_closed_display)
 
@@ -497,6 +462,7 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
 
 
 
