@@ -379,3 +379,124 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
                 st.info("Aucune MA clôturée trouvée.")
         except Exception as e:
             st.error(f"Erreur lors du calcul des dernières clôtures : {e}")
+
+# ==========================
+# --- Consultation / Export ---
+# ==========================
+elif menu == "📊 Consulter MA":
+    st.subheader("Filtrer les autorisations MA")
+
+    # Charger toutes les données depuis Supabase
+    resp = supabase.table("autorisations_ma").select("*").order("Date_ajout", desc=True).execute()
+    df = pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
+
+    if df.empty:
+        st.info("Aucune donnée disponible dans la base.")
+    else:
+        # --- Initialisation des variables de session ---
+        if "matricule_search" not in st.session_state:
+            st.session_state.matricule_search = ""
+        if "pays_sel" not in st.session_state:
+            st.session_state.pays_sel = []
+        if "type_sel" not in st.session_state:
+            st.session_state.type_sel = []
+        if "date_start" not in st.session_state:
+            st.session_state.date_start = None
+        if "date_end" not in st.session_state:
+            st.session_state.date_end = None
+
+        # --- Options disponibles ---
+        pays_options = sorted(df["Pays"].dropna().unique())
+        type_options = sorted(df["Type"].dropna().unique())
+
+        # Corriger les defaults invalides
+        st.session_state.pays_sel = [p for p in st.session_state.pays_sel if p in pays_options]
+        st.session_state.type_sel = [t for t in st.session_state.type_sel if t in type_options]
+
+        # --- Formulaire de recherche ---
+        with st.form("search_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                matricule_search = st.text_input(
+                    "🔍 Recherche par matricule",
+                    st.session_state.matricule_search
+                ).strip().upper()
+                pays_sel = st.multiselect(
+                    "🌍 Pays",
+                    options=pays_options,
+                    default=st.session_state.pays_sel
+                )
+            with col2:
+                type_sel = st.multiselect(
+                    "📦 Type MA",
+                    options=type_options,
+                    default=st.session_state.type_sel
+                )
+                date_start = st.date_input("📅 Date début", value=st.session_state.date_start)
+                date_end = st.date_input("📅 Date fin", value=st.session_state.date_end)
+
+            col_btn1, col_btn2 = st.columns([1, 1])
+            with col_btn1:
+                submit_search = st.form_submit_button("🔎 Rechercher")
+            with col_btn2:
+                reset_filters = st.form_submit_button("♻️ Réinitialiser les filtres")
+
+        # --- Réinitialiser les filtres ---
+        if reset_filters:
+            st.session_state.matricule_search = ""
+            st.session_state.pays_sel = []
+            st.session_state.type_sel = []
+            st.session_state.date_start = None
+            st.session_state.date_end = None
+            st.experimental_rerun()  # 🔹 relance l'app pour vider les champs
+
+        # --- Si pas encore de recherche ---
+        if not submit_search:
+            st.info("Veuillez saisir vos critères et cliquer sur **Rechercher** pour afficher les résultats.")
+        else:
+            df["Date_ajout"] = pd.to_datetime(df["Date_ajout"], errors="coerce")
+            df_filtered = df.copy()
+
+            # --- Application des filtres ---
+            if matricule_search:
+                df_filtered = df_filtered[df_filtered["Matricule"].str.contains(matricule_search, case=False, na=False)]
+                st.session_state.matricule_search = matricule_search
+            if pays_sel:
+                df_filtered = df_filtered[df_filtered["Pays"].isin(pays_sel)]
+                st.session_state.pays_sel = pays_sel
+            if type_sel:
+                df_filtered = df_filtered[df_filtered["Type"].isin(type_sel)]
+                st.session_state.type_sel = type_sel
+            if date_start:
+                df_filtered = df_filtered[df_filtered["Date_ajout"] >= pd.Timestamp(date_start)]
+                st.session_state.date_start = date_start
+            if date_end:
+                df_filtered = df_filtered[df_filtered["Date_ajout"] <= pd.Timestamp(date_end)]
+                st.session_state.date_end = date_end
+
+            # --- Affichage résultat ---
+            if df_filtered.empty:
+                st.warning("⚠️ Aucun résultat trouvé pour ces critères.")
+            else:
+                df_affiche = df_filtered[["Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
+                df_affiche.columns = ["N°", "Réf. MA", "Pays", "Date", "Statut"]
+                st.success(f"✅ {len(df_affiche)} résultat(s) trouvé(s)")
+                st.dataframe(df_affiche, use_container_width=True)
+
+                # --- Export Excel ---
+                buffer = io.BytesIO()
+                df_affiche.to_excel(buffer, index=False, engine="openpyxl")
+                st.download_button(
+                    "📥 Télécharger en Excel",
+                    buffer.getvalue(),
+                    file_name="resultats_filtrés.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+        # --- 10 dernières opérations (toujours visibles) ---
+        st.subheader("📋 10 dernières opérations")
+        df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
+        df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
+        st.dataframe(df_recent, use_container_width=True)
+
+
