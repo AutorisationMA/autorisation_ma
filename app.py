@@ -479,51 +479,67 @@ elif menu == "📤 MA Export" and st.session_state.role != "consult":
                                     st.error(f"Erreur lors de la clôture confirmée : {e}")
 
         # --- 10 dernières clôtures (toujours visibles en bas) ---
-        st.subheader("📋 10 dernières clôtures")
+st.subheader("📋 10 dernières clôtures")
+try:
+    # Filtrer Exporte == Oui (tolérance casse)
+    if col_exporte and col_exporte in df.columns:
+        df_closed = df[df[col_exporte].astype(str).str.upper() == "OUI"].copy()
+    else:
+        # fallback : si pas de colonne Exporte on cherche par Date_cloture non null
+        df_closed = df[df[col_date_clot].notna()] if col_date_clot and col_date_clot in df.columns else pd.DataFrame()
+
+    if not df_closed.empty:
+        # trier par date_cloture si possible, sinon par id
+        if col_date_clot and col_date_clot in df_closed.columns:
+            df_closed[col_date_clot] = pd.to_datetime(df_closed[col_date_clot], errors="coerce")
+            df_closed = df_closed.sort_values(by=col_date_clot, ascending=False)
+        elif col_id and col_id in df_closed.columns:
+            df_closed = df_closed.sort_values(by=col_id, ascending=False)
+
+        # garder colonnes clefs si elles existent
+        cols_keep = []
+        for cand in [col_id, col_mat, col_ref, col_pays, col_date_clot]:
+            if cand and cand in df_closed.columns:
+                cols_keep.append(cand)
+
+        df_closed_display = df_closed[cols_keep].head(10).copy()
+        # renommer pour affichage
+        rename_map = {}
+        if col_id in df_closed_display.columns:
+            rename_map[col_id] = "ID"
+        if col_mat in df_closed_display.columns:
+            rename_map[col_mat] = "N"
+        if col_ref in df_closed_display.columns:
+            rename_map[col_ref] = "MA"
+        if col_pays in df_closed_display.columns:
+            rename_map[col_pays] = "Pays"
+        if col_date_clot in df_closed_display.columns:
+            rename_map[col_date_clot] = "Date_cloture"
+        df_closed_display = df_closed_display.rename(columns=rename_map)
+        # formater date si presente
+        if "Date_cloture" in df_closed_display.columns:
+            df_closed_display["Date_cloture"] = pd.to_datetime(df_closed_display["Date_cloture"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        st.dataframe(df_closed_display, use_container_width=True)
+
+        # --- Bouton Export Excel pour 10 dernières clôtures ---
         try:
-            # Filtrer Exporte == Oui (tolérance casse)
-            if col_exporte and col_exporte in df.columns:
-                df_closed = df[df[col_exporte].astype(str).str.upper() == "OUI"].copy()
-            else:
-                # fallback : si pas de colonne Exporte on cherche par Date_cloture non null
-                df_closed = df[df[col_date_clot].notna()] if col_date_clot and col_date_clot in df.columns else pd.DataFrame()
-
-            if not df_closed.empty:
-                # trier par date_cloture si possible, sinon par id
-                if col_date_clot and col_date_clot in df_closed.columns:
-                    df_closed[col_date_clot] = pd.to_datetime(df_closed[col_date_clot], errors="coerce")
-                    df_closed = df_closed.sort_values(by=col_date_clot, ascending=False)
-                elif col_id and col_id in df_closed.columns:
-                    df_closed = df_closed.sort_values(by=col_id, ascending=False)
-
-                # garder colonnes clefs si elles existent
-                cols_keep = []
-                for cand in [col_id, col_mat, col_ref, col_pays, col_date_clot]:
-                    if cand and cand in df_closed.columns:
-                        cols_keep.append(cand)
-
-                df_closed_display = df_closed[cols_keep].head(10).copy()
-                # renommer pour affichage
-                rename_map = {}
-                if col_id in df_closed_display.columns:
-                    rename_map[col_id] = "ID"
-                if col_mat in df_closed_display.columns:
-                    rename_map[col_mat] = "N"
-                if col_ref in df_closed_display.columns:
-                    rename_map[col_ref] = "MA"
-                if col_pays in df_closed_display.columns:
-                    rename_map[col_pays] = "Pays"
-                if col_date_clot in df_closed_display.columns:
-                    rename_map[col_date_clot] = "Date_cloture"
-                df_closed_display = df_closed_display.rename(columns=rename_map)
-                # formater date si presente
-                if "Date_cloture" in df_closed_display.columns:
-                    df_closed_display["Date_cloture"] = pd.to_datetime(df_closed_display["Date_cloture"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
-                st.dataframe(df_closed_display, use_container_width=True)
-            else:
-                st.info("Aucune MA clôturée trouvée.")
+            buffer_closed = io.BytesIO()
+            df_closed_display.to_excel(buffer_closed, index=False, engine="openpyxl")
+            st.download_button(
+                "📥 Télécharger les 10 dernières clôtures (Excel)",
+                buffer_closed.getvalue(),
+                file_name="10_dernières_clotures.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         except Exception as e:
-            st.error(f"Erreur lors du calcul des dernières clôtures : {e}")
+            st.error(f"Erreur lors de l'export Excel des dernières clôtures : {e}")
+
+    else:
+        st.info("Aucune MA clôturée trouvée.")
+except Exception as e:
+    st.error(f"Erreur lors du calcul des dernières clôtures : {e}")
+
 
 
 
@@ -647,5 +663,6 @@ elif menu == "📊 Consulter MA":
         df_recent = df.head(10)[["id", "Matricule", "Reference_MA", "Pays", "Date_ajout", "Exporte"]].copy()
         df_recent.columns = ["ID", "N°", "Réf. MA", "Pays", "Date", "Statut"]
         st.dataframe(df_recent, use_container_width=True)
+
 
 
